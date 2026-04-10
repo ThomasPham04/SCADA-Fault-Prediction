@@ -14,7 +14,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-from config import WINDOW_SIZE
+from config import WINDOW_SIZE, NORMAL_STATUS
 from data_pipeline.loaders.event_loader import EventLoader
 from data_pipeline.preprocessing.feature_engineering import FeatureEngineer
 
@@ -212,11 +212,26 @@ class DataSplitter:
         print(f"  Val:   {len(val_split)} timesteps ({len(val_split) / n_total * 100:.1f}%)")
 
         return train_split, val_split
-
+    # ------------------------------------------------------------------
+    # Per-csv helpers
+    # ------------------------------------------------------------------
+    def split_train_val_autoencoder(self, df: pd.DataFrame):
+        """
+        Split a single DataFrame into training and validation sets for autoencoder training.
+        
+        Args:
+            df: DataFrame containing the data to split.
+            
+        Returns:
+            Tuple of (train_df, val_df).
+        """
+        train_df = df[(df['status_type_id'].isin(NORMAL_STATUS)) & (df['train_test'] == 'train')]
+        val_df = train_df.copy()
+        return train_df, val_df
     # ------------------------------------------------------------------
     # Per-asset helpers
     # ------------------------------------------------------------------
-
+    
     def group_events_by_asset(self) -> dict:
         """
         Group event IDs by their asset (turbine) ID.

@@ -42,7 +42,7 @@ PREDICTION_WINDOW_HOURS = 48
 SEQUENCE_LENGTH = int(PREDICTION_WINDOW_HOURS * 60 / TIME_RESOLUTION)
 
 # Features to exclude (non-sensor columns)
-EXCLUDE_COLUMNS = ['time_stamp', 'asset_id', 'id', 'train_test']
+EXCLUDE_COLUMNS = ['time_stamp', 'asset_id', 'id', 'train_test', 'sequence_id', 'label']
 
 # =============================================================================
 # NORMAL BEHAVIOR MODEL PARAMETERS
@@ -153,7 +153,7 @@ ANGLE_FEATURES = [
 #  requires real-time state indicators, not accumulated counters.
 # We already have instantaneous power features: power_29, power_30, sensor_31 (kW, kVAr)
 # NOTE: These sensors don't have '_avg' suffix in the CSV files
-COUNTER_FEATURES = [
+POWER_FEATURES = [
     'sensor_44',  # Active power - generator disconnected (Wh)
     'sensor_45',  # Active power - generator delta (Wh)
     'sensor_46',  # Active power - generator star (Wh)
@@ -169,7 +169,8 @@ FEATURE_COLUMNS = (
     TEMPERATURE_FEATURES +
     RPM_FEATURES +
     ELECTRICAL_FEATURES +
-    WIND_POWER_FEATURES
+    WIND_POWER_FEATURES +
+    POWER_FEATURES
 )
 
 # =============================================================================

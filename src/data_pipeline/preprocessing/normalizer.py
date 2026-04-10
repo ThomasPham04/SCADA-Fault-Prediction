@@ -1,6 +1,6 @@
 """
 AssetNormalizer — data_pipeline.preprocessing.normalizer
-StandardScaler normalization fitted exclusively on each asset's training data.
+MinMaxScaler normalization fitted exclusively on each asset's training data.
 """
 
 import numpy as np
@@ -9,25 +9,29 @@ import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from config import STRIDE
 from data_pipeline.loaders.sequence_maker import SequenceMaker
 
 
 class AssetNormalizer:
     """
-    Normalizes SCADA sequence data using a StandardScaler fitted only on
+    Normalizes SCADA sequence data using a MinMaxScaler fitted only on
     training data — ensuring the model never sees anomalous patterns during
     normalization.
 
     Args:
         output_dir: Root directory where fitted scalers are saved.
         seq_len: Sequence window length used when sequencing test events.
+        scaler_type: Type of scaling ('standard' or 'minmax').
     """
 
-    def __init__(self, output_dir: str, seq_len: int) -> None:
+    def __init__(self, output_dir: str, seq_len: int, scaler_type: str = "standard") -> None:
         self.output_dir = output_dir
         self.seq_len    = seq_len
+        self.scaler_type = scaler_type.lower()
+        if self.scaler_type not in ("standard", "minmax"):
+            raise ValueError("scaler_type must be 'standard' or 'minmax'")
 
     def normalize_asset(
         self,
@@ -39,7 +43,7 @@ class AssetNormalizer:
         test_data_dict: dict,
     ) -> tuple:
         """
-        Normalize data for a single asset using a StandardScaler fit only on that
+        Normalize data for a single asset using the specified scaler fit only on that
         asset's training sequences.
 
         Each asset gets its own scaler (scaler_asset_{id}.pkl) — ensuring the
@@ -59,7 +63,11 @@ class AssetNormalizer:
         n_train, _seq_len, n_features = X_train.shape
         n_val = X_val.shape[0]
 
-        scaler = StandardScaler()
+        if self.scaler_type == "minmax":
+            scaler = MinMaxScaler()
+        else:
+            scaler = StandardScaler()
+            
         X_train_sc = scaler.fit_transform(X_train.reshape(-1, n_features)).reshape(n_train, _seq_len, n_features)
         X_val_sc   = scaler.transform(X_val.reshape(-1, n_features)).reshape(n_val, _seq_len, n_features)
         y_train_sc = scaler.transform(y_train)
@@ -105,10 +113,11 @@ def normalize_data(
     X_train, X_val, y_train, y_val,
     test_data_dict: dict,
     output_dir: str,
+    scaler_type: str = "standard",
 ) -> tuple:
     """Legacy alias — wraps AssetNormalizer.normalize_data()."""
-    norm = AssetNormalizer(output_dir=output_dir, seq_len=X_train.shape[1])
-    return norm.normalize_data(X_train, X_val, y_train, y_val, test_data_dict)
+    norm = AssetNormalizer(output_dir=output_dir, seq_len=X_train.shape[1], scaler_type=scaler_type)
+    return norm.normalize_asset(0, X_train, X_val, y_train, y_val, test_data_dict)
 
 
 def normalize_asset(
@@ -117,7 +126,8 @@ def normalize_asset(
     test_data_dict: dict,
     output_dir: str,
     seq_len: int,
+    scaler_type: str = "standard",
 ) -> tuple:
     """Legacy alias — wraps AssetNormalizer.normalize_asset()."""
-    norm = AssetNormalizer(output_dir=output_dir, seq_len=seq_len)
+    norm = AssetNormalizer(output_dir=output_dir, seq_len=seq_len, scaler_type=scaler_type)
     return norm.normalize_asset(asset_id, X_train, X_val, y_train, y_val, test_data_dict)

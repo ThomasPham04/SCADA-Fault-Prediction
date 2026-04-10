@@ -39,6 +39,21 @@ from data_pipeline.loaders.sequence_maker import SequenceMaker
 from data_pipeline.preprocessing.splitter import DataSplitter
 from data_pipeline.preprocessing.normalizer import AssetNormalizer
 
+class SingleCSVPipeline:
+    """
+    Orchestrates the full single CSV data preparation pipeline.
+    """
+    def __init__(self, farm_dir: str, datasets_dir: str, output_dir: str) -> None:
+        self.farm_dir = farm_dir
+        self.datasets_dir = datasets_dir
+        self.output_dir = output_dir
+        self._event_loader = EventLoader(farm_dir=farm_dir, datasets_dir=datasets_dir)
+
+    def run(self) -> None: 
+        event_info = self._event_loader.load_event_info()
+        splitter = DataSplitter(datasets_dir=self.datasets_dir, event_info=event_info)
+        asset_groups = splitter.split_train_val_autoencoder()
+        
 
 class PerAssetPipeline:
     """
@@ -69,6 +84,7 @@ class PerAssetPipeline:
         window_size: int,
         stride: int,
         val_size: float,
+        scaler_type: str = "standard",
     ) -> None:
         self.farm_dir     = farm_dir
         self.datasets_dir = datasets_dir
@@ -76,6 +92,7 @@ class PerAssetPipeline:
         self.window_size  = window_size
         self.stride       = stride
         self.val_size     = val_size
+        self.scaler_type  = scaler_type
 
         self._event_loader = EventLoader(farm_dir=farm_dir, datasets_dir=datasets_dir)
         self._seq_maker    = SequenceMaker(window_size=window_size, stride=stride)
@@ -155,7 +172,7 @@ class PerAssetPipeline:
             print(f"\n  Sequences — Train: {X_train.shape}, Val: {X_val.shape}")
 
             # --- Normalization (per-asset scaler) ---
-            normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size)
+            normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size, scaler_type=self.scaler_type)
             X_train_sc, X_val_sc, y_train_sc, y_val_sc, test_scaled = \
                 normalizer.normalize_asset(
                     asset_id=asset_id,
@@ -298,7 +315,7 @@ class PerAssetPipeline:
         asset_dir  = os.path.join(self.output_dir, f"asset_{asset_name}")
         os.makedirs(asset_dir, exist_ok=True)
 
-        normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size)
+        normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size, scaler_type=self.scaler_type)
         test_dict  = {asset_name: {
             "features":    test_arr,
             "time_stamps": df["time_stamp"].astype(str).tolist()[test_cut:],

@@ -48,7 +48,7 @@ if SRC_DIR not in sys.path:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_pipeline():
+def _make_pipeline(scaler_type: str = "standard"):
     from config import (
         WIND_FARM_A_DIR, WIND_FARM_A_DATASETS, PER_ASSET_PROCESSED_DIR,
         WINDOW_SIZE, STRIDE, VAL_SIZE,
@@ -61,6 +61,7 @@ def _make_pipeline():
         window_size=WINDOW_SIZE,
         stride=STRIDE,
         val_size=VAL_SIZE,
+        scaler_type=scaler_type,
     )
 
 
@@ -70,7 +71,7 @@ def _make_pipeline():
 
 def run_prepare(args) -> None:
     """Stage 1 — prepare per-asset data arrays."""
-    pipeline = _make_pipeline()
+    pipeline = _make_pipeline(scaler_type=getattr(args, "scaler", "standard"))
 
     csv = getattr(args, "csv", None)
     if csv:
@@ -98,26 +99,42 @@ def run_train(args) -> None:
     asset_name = None
 
     if csv:
-        # Prepare from CSV first, then train only that asset
-        pipeline   = _make_pipeline()
-        asset_dir  = pipeline.run_from_csv(
-            csv_path=csv,
-            asset_name=getattr(args, "asset_name", None),
-            label=getattr(args, "label", "normal"),
-        )
-        asset_name = os.path.basename(asset_dir).replace("asset_", "")
+        if getattr(args, "model", "").lower() == "autodecoder":
+            # For autodecoder, we train directly from CSV via RAM (no disk saving)
+            from training.trainer import AutoEncoderTrainer
+            asset_name = getattr(args, "asset_name", None)
+            AutoEncoderTrainer().run_from_csv(csv_path=csv, asset_name=asset_name)
+            
+            # Since we just trained it, we don't want the regular per_asset loop to run
+            asset_filter = []
+        else:
+            # Prepare from CSV first, then train only that asset (saves to disk)
+            pipeline   = _make_pipeline(scaler_type=getattr(args, "scaler", "standard"))
+            asset_dir  = pipeline.run_from_csv(
+                csv_path=csv,
+                asset_name=getattr(args, "asset_name", None),
+                label=getattr(args, "label", "normal"),
+            )
+            asset_name = os.path.basename(asset_dir).replace("asset_", "")
+            asset_filter = [asset_name]
 
     ensure_dirs()
     os.makedirs(MODELS_DIR, exist_ok=True)
-    model = args.model.lower()
-
-    asset_filter = [asset_name] if asset_name else getattr(args, "assets", None)
 
     if model in ("lstm", "all"):
         print("\n" + "=" * 70)
         print("TRAINING — LSTM")
         print("=" * 70)
         LSTMTrainer().run_per_asset(asset_filter=asset_filter)
+
+    if model in ("autodecoder", "all"):
+        # We only run the per-asset loop if we didn't train directly from CSV (or if asset_filter is not empty setup from above)
+        if not csv or asset_filter:
+            from training.trainer import AutoEncoderTrainer
+            print("\n" + "=" * 70)
+            print("TRAINING — AutoDecoder")
+            print("=" * 70)
+            AutoEncoderTrainer().run_per_asset(asset_filter=asset_filter)
 
     if model in ("random_forest", "rf", "all"):
         print("\n" + "=" * 70)
@@ -150,6 +167,13 @@ def run_evaluate(args) -> None:
         print("EVALUATION — LSTM")
         print("=" * 70)
         LSTMEvaluator().evaluate_per_asset(asset_filter=asset_filter, use_adaptive=args.adaptive)
+
+    if model in ("autodecoder", "all"):
+        if csv:
+            from evaluation.evaluator import AutoEncoderEvaluator
+            AutoEncoderEvaluator().evaluate_from_csv(csv_path=csv, asset_name=asset_name)
+        else:
+            print("\n[WARN] AutoDecoder evaluation currently requires a direct --csv flag.")
 
     tree_models = []
     if model in ("random_forest", "rf", "both", "all"):
@@ -191,7 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     # ---- shared model/asset flags ----
     def add_common(p):
         p.add_argument("--model", type=str, default="lstm",
-                       choices=["lstm", "random_forest", "rf", "xgboost", "xgb", "both", "all"],
+                       choices=["lstm", "autodecoder", "random_forest", "rf", "xgboost", "xgb", "both", "all"],
                        help="Which model(s) to use.")
         p.add_argument("--assets", type=str, nargs="+", default=None,
                        metavar="ID",
@@ -227,6 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
                                   "Use --csv to process a single file.")
     add_common(prep_p)
     add_csv_flags(prep_p)
+    prep_p.add_argument("--scaler", type=str, default="standard", choices=["standard", "minmax"],
+                        help="Which scaler to use for normalization (default: standard).")
 
     # ---- train ----
     train_p = sub.add_parser("train",
@@ -234,6 +260,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(train_p)
     add_csv_flags(train_p)
     add_hparams(train_p)
+    train_p.add_argument("--scaler", type=str, default="standard", choices=["standard", "minmax"],
+                         help="Which scaler to use for normalization (used if --csv is passed).")
 
     # ---- evaluate ----
     eval_p = sub.add_parser("evaluate", help="Evaluate trained model(s) on test events.")
@@ -245,6 +273,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(run_p)
     add_csv_flags(run_p)
     add_hparams(run_p)
+    run_p.add_argument("--scaler", type=str, default="standard", choices=["standard", "minmax"],
+                       help="Which scaler to use for normalisation (default: standard).")
     run_p.add_argument("--skip_prepare", action="store_true",
                        help="Skip data preparation (use if already prepared).")
 

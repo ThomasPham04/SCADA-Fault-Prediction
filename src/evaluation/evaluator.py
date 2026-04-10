@@ -699,3 +699,106 @@ class TreeEvaluator:
         results_dir = os.path.join(self.results_dir, "global")
         os.makedirs(results_dir, exist_ok=True)
         self._vis.compare_models_chart(all_results, results_dir)
+
+# ===========================================================================
+# AutoEncoder Evaluator
+# ===========================================================================
+
+class AutoEncoderEvaluator:
+    """
+    Evaluation for the AutoDecoder anomaly detector trained directly on CSVs.
+    """
+    def __init__(
+        self,
+        models_dir: str = MODELS_DIR,
+        results_dir: str = RESULTS_DIR,
+    ) -> None:
+        self.models_dir  = models_dir
+        self.results_dir = results_dir
+
+    def evaluate_from_csv(self, csv_path: str, asset_name: str = None) -> None:
+        """
+        Evaluate the AutoDecoder directly from a CSV file.
+        Uses the last 30% of the timeline as the validation/evaluation set.
+        """
+        import pandas as pd
+        import joblib
+        from tensorflow.keras.models import load_model
+        import matplotlib.pyplot as plt
+        from data_pipeline.preprocessing.feature_engineering import FeatureEngineer
+
+        if not os.path.exists(csv_path):
+            print(f"[ERROR] CSV not found: {csv_path}")
+            return
+            
+        if asset_name is None:
+            asset_name = os.path.splitext(os.path.basename(csv_path))[0]
+
+        print("\n" + "=" * 70)
+        print(f"EVALUATION — AutoDecoder — {asset_name}")
+        print("=" * 70)
+
+        # 1. Load data and Filter prediction split
+        df = pd.read_csv(csv_path, sep=None, engine="python")
+        df_eval = df[df["train_test"] == "prediction"].copy()
+        
+        if len(df_eval) == 0:
+            print("[ERROR] Evaluation dataset is empty (no prediction rows found).")
+            return
+            
+        print(f"  Prediction rows: {len(df_eval):,}")
+
+        # 2. Feature engineering
+        fe = FeatureEngineer()
+        df_eval = fe.engineer_angle_features(df_eval)
+        df_eval = fe.drop_counter_features(df_eval)
+        feature_cols = fe.get_feature_columns(df_eval)
+        val_split = fe.preprocess_features(df_eval, feature_cols).astype("float32")
+        
+        # 3. Load scaler and transform
+        scaler_path = os.path.join(self.models_dir, f"autodecoder_scaler_{asset_name}.pkl")
+        if not os.path.exists(scaler_path):
+            print(f"[ERROR] Scaler not found: {scaler_path}")
+            return
+        
+        scaler = joblib.load(scaler_path)
+        X_val_sc = scaler.transform(val_split)
+
+        # 4. Load model
+        model_path = os.path.join(self.models_dir, f"autodecoder_asset_{asset_name}.keras")
+        if not os.path.exists(model_path):
+            print(f"[ERROR] Model not found: {model_path}")
+            return
+            
+        model = load_model(model_path, compile=False)
+
+        # 5. Predict and compute reconstruction error
+        print(f"  Predicting on {len(X_val_sc):,} samples...")
+        y_pred = model.predict(X_val_sc, verbose=0, batch_size=256)
+        
+        # MSE per sample
+        mse = np.mean((X_val_sc - y_pred) ** 2, axis=1)
+        
+        print(f"  MSE Mean: {np.mean(mse):.6f}")
+        print(f"  MSE Max:  {np.max(mse):.6f}")
+        print(f"  MSE p95:  {np.percentile(mse, 95):.6f}")
+
+        # 6. Plot the anomaly score (MSE) timeline
+        results_root = os.path.join(self.results_dir, "per_asset", f"asset_{asset_name}")
+        os.makedirs(results_root, exist_ok=True)
+        
+        plt.figure(figsize=(15, 6))
+        plt.plot(mse, label='Reconstruction Error (MSE)', color='darkred', linewidth=1)
+        plt.title(f'AutoDecoder Anomaly Scores (Eval Split) - {asset_name}', fontsize=14)
+        plt.xlabel('Timestep', fontsize=12)
+        plt.ylabel('MSE', fontsize=12)
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.legend()
+        plt.tight_layout()
+        
+        plot_path = os.path.join(results_root, "autodecoder_evaluation.png")
+        plt.savefig(plot_path, dpi=150)
+        plt.close()
+        
+        print(f"  Saved evaluation plot: {plot_path}")
+        print("=" * 70)

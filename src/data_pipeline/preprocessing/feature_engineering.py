@@ -1,6 +1,6 @@
 """
 FeatureEngineer — data_pipeline.preprocessing.feature_engineering
-Transforms raw SCADA DataFrame columns: angle encoding, counter dropping,
+Transforms raw SCADA DataFrame columns: angle encoding
 feature-column selection, and raw value extraction.
 """
 
@@ -25,6 +25,11 @@ class FeatureEngineer:
     All methods operate on copies of the input; the original DataFrame is
     never modified in-place.
     """
+    @staticmethod
+    def wrap_angle_deg(series: pd.Series) -> pd.Series:
+        """Wrap raw angles into [-180, 180)."""
+        values = pd.to_numeric(series, errors="coerce")
+        return ((values + 180.0) % 360.0) - 180.0
 
     def engineer_angle_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -37,29 +42,25 @@ class FeatureEngineer:
         Returns:
             DataFrame with sin/cos columns replacing angle columns.
         """
-        df_copy = df.copy()
+        df = df.copy()
+
         for col in ANGLE_FEATURES:
-            if col in df_copy.columns:
-                radians = np.radians(df_copy[col])
-                df_copy[f"{col}_sin"] = np.sin(radians)
-                df_copy[f"{col}_cos"] = np.cos(radians)
-                df_copy.drop(col, axis=1, inplace=True)
-        return df_copy
+            if col not in df.columns:
+                continue
 
-    def drop_counter_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Drop cumulative energy counter columns (Wh, VArh).
-        These represent accumulated totals, not instantaneous readings.
+            wrapped = self.wrap_angle_deg(df[col])
+            radians = np.radians(wrapped)
+            df[f"{col}_sin"] = np.sin(radians)
+            df[f"{col}_cos"] = np.cos(radians)
 
-        Args:
-            df: DataFrame that may contain counter columns.
+        if "sensor_2_avg" in df.columns:
+            relative_direction = self.wrap_angle_deg(df["sensor_2_avg"])
+            df["yaw_misalignment_abs"] = relative_direction.abs()
 
-        Returns:
-            DataFrame with counter columns removed.
-        """
-        cols_to_drop = [col for col in COUNTER_FEATURES if col in df.columns]
-        if cols_to_drop:
-            df = df.drop(cols_to_drop, axis=1)
+        raw_angle_columns = [col for col in ANGLE_FEATURES if col in df.columns]
+        if raw_angle_columns:
+            df.drop(columns=raw_angle_columns, inplace=True)
+
         return df
 
     def get_feature_columns(self, df: pd.DataFrame) -> list:
@@ -84,7 +85,7 @@ class FeatureEngineer:
                 feature_cols.append(cos_col)
 
         exclude_all = (
-            EXCLUDE_COLUMNS + ["status_type_id"] + ANGLE_FEATURES + COUNTER_FEATURES
+            EXCLUDE_COLUMNS + ["status_type_id"] + ANGLE_FEATURES 
         )
         feature_cols = [col for col in feature_cols if col not in exclude_all]
         return feature_cols
@@ -109,30 +110,3 @@ class FeatureEngineer:
         features = features.ffill().bfill()
         features = features.fillna(0)
         return features.values
-
-
-# ---------------------------------------------------------------------------
-# Backward-compatible module-level aliases
-# ---------------------------------------------------------------------------
-
-_engineer = FeatureEngineer()
-
-
-def engineer_angle_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Legacy alias."""
-    return _engineer.engineer_angle_features(df)
-
-
-def drop_counter_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Legacy alias."""
-    return _engineer.drop_counter_features(df)
-
-
-def get_feature_columns(df: pd.DataFrame) -> list:
-    """Legacy alias."""
-    return _engineer.get_feature_columns(df)
-
-
-def preprocess_features(df: pd.DataFrame, feature_cols: list) -> np.ndarray:
-    """Legacy alias."""
-    return _engineer.preprocess_features(df, feature_cols)

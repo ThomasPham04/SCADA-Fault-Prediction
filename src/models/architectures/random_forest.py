@@ -110,3 +110,4 @@ def build_random_forest_model(
         max_features=max_features, class_weight=class_weight,
         n_jobs=n_jobs, random_state=random_state,
     ).build()
+

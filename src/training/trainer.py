@@ -32,6 +32,48 @@ from config import (
 from utils.metrics import MetricsCalculator
 from utils.visualization import Visualizer
 
+# ===========================================================================
+# AutoEncoder Trainer
+# ===========================================================================
+class AutoEncoderTrainer: 
+    """
+    Trains the AutoEncoder Model
+
+    Args:
+        models_dir: Directory where .kkeras model files are saved
+        results_dir: Root directory for training result plots/logs
+        batch_size: Mini-batch size for model.fit(), default = None 
+        epochs: Maximum number of training epochs. 
+        seed: Random seed for reproducibility
+    """
+
+    def __init__(self, models_dir: str= MODELS_DIR, results_dir: str = RESULTS_DIR, batch_size: int = BATCH_SIZE, epochs: int = EPOCHS, seed: int = RANDOM_SEED):
+        self.models_dir  = models_dir
+        self.results_dir = results_dir
+        self.batch_size  = batch_size
+        self.epochs      = epochs
+        self.seed        = seed
+        self._vis        = Visualizer()
+
+    def _set_seeds(self) -> None:
+        """Ensure deterministic training runs."""
+        import tensorflow as tf
+        np.random.seed(self.seed)
+        tf.random.set_seed(self.seed)
+        os.environ["PYTHONHASHSEED"] = str(self.seed)
+    def train(self, model, x_train, y_train, X_val, model_path: str):
+        """
+        Run model.fit() for training the model
+        
+        Args: 
+            model: Compiled Keras model.
+            model_path: Where to checkpoint the best model
+        
+        Returns:
+            Keras History object.    
+        """
+        
+        from training.callbacks.early_stopping import get_autoencoder_callbacks
 
 # ===========================================================================
 # LSTM Trainer
