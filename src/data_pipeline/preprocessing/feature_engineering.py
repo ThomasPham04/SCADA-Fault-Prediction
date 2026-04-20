@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 import sys
 import os
+from typing import List, Tuple
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 from config import (
     ANGLE_FEATURES,
-    COUNTER_FEATURES,
     FEATURE_COLUMNS,
     EXCLUDE_COLUMNS,
 )
@@ -63,6 +63,16 @@ class FeatureEngineer:
 
         return df
 
+    def drop_counter_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Legacy-named helper retained for backward compatibility.
+
+        No additional columns are dropped here anymore. The only columns that
+        should be excluded are the explicit metadata/id columns handled
+        elsewhere via DROP_COLUMNS / EXCLUDE_COLUMNS.
+        """
+        return df.copy()
+
     def get_feature_columns(self, df: pd.DataFrame) -> list:
         """
         Determine the final feature column list after angle engineering.
@@ -110,3 +120,44 @@ class FeatureEngineer:
         features = features.ffill().bfill()
         features = features.fillna(0)
         return features.values
+
+    @staticmethod
+    def fill_missing_by_group(
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        group_col: str = "sequence_id",
+    ) -> pd.DataFrame:
+        """Forward/backward-fill missing feature values within each sequence."""
+        df = df.copy()
+        df[feature_cols] = (
+            df.groupby(group_col, group_keys=False)[feature_cols]
+            .apply(lambda part: part.ffill().bfill().fillna(0.0))
+        )
+        return df
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible module-level aliases
+# ---------------------------------------------------------------------------
+
+_engineer = FeatureEngineer()
+
+
+def engineer_angle_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Legacy alias."""
+    return _engineer.engineer_angle_features(df)
+
+
+def drop_counter_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Legacy alias."""
+    return _engineer.drop_counter_features(df)
+
+
+def get_feature_columns(df: pd.DataFrame) -> list:
+    """Legacy alias."""
+    return _engineer.get_feature_columns(df)
+
+
+def preprocess_features(df: pd.DataFrame, feature_cols: list) -> np.ndarray:
+    """Legacy alias."""
+    return _engineer.preprocess_features(df, feature_cols)
