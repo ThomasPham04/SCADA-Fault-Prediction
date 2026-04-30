@@ -72,3 +72,5 @@ ref_project/
 # ==============================================================================
 
 ref_paper.md
+reference_source/
+experiments/kaggle_prepare_sequences.py

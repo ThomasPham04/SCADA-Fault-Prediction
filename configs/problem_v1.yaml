@@ -1,0 +1,138 @@
+problem:
+  id: wind_turbine_scada_future_anomaly_v1
+  version: v1
+  crisp_dm_phase: business_understanding
+  task_type: supervised_binary_future_anomaly_prediction
+  objective_formula: "X[t-W+1:t] -> P(y[t,H] = 1)"
+
+business:
+  objective: >
+    Support early prediction of wind turbine anomalies or faults from SCADA
+    data so that maintenance teams can reduce unplanned downtime and improve
+    operational reliability.
+  decision_output: early_warning_probability
+  intended_use: capstone_research_and_offline_model_evaluation
+
+dataset:
+  root_dir: Dataset/raw
+  available_wind_farms:
+    - Wind Farm A
+    - Wind Farm B
+    - Wind Farm C
+  initial_scope_wind_farms:
+    - Wind Farm A
+  out_of_scope_wind_farms_v1:
+    - Wind Farm B
+    - Wind Farm C
+  farm_structure:
+    datasets_dir: datasets
+    event_info_file: event_info.csv
+    feature_description_file: feature_description.csv
+  event_file_unit: one_csv_per_event_time_series
+
+time_series:
+  sampling_minutes: 10
+  input_window_steps: 144
+  input_window_hours: 24d
+  prediction_horizon_steps: 72
+  prediction_horizon_hours: 12
+  stride_steps: 6
+  stride_minutes: 60
+
+window_generation:
+  pooling_strategy: vertical_pooling_within_same_wind_farm
+  primary_group_keys:
+    - asset_id
+    - event_id
+  processed_group_keys:
+    - asset_id
+    - sequence_id
+  event_id_column_candidates:
+    - event_id
+    - sequence_id
+  do_not_cross_boundaries:
+    turbine: true
+    event_file: true
+    wind_farm: true
+    train_validation_test_split: true
+  input_interval: "[t-W+1, t]"
+  future_label_interval: "[t+1, t+H]"
+
+labels:
+  row_label_column: label
+  positive_label: 1
+  negative_label: 0
+  target_name: future_anomaly_within_horizon
+  target_definition: >
+    y[t,H] = 1 iff any timestamp in [t+1, t+H] has anomaly label 1;
+    otherwise y[t,H] = 0.
+  event_label_source: event_info.csv
+  leakage_columns_to_exclude:
+    - label
+    - future_anomaly_within_horizon
+    - status_type_id
+    - train_test
+    - time_stamp
+    - asset_id
+    - event_id
+    - sequence_id
+    - id
+
+splitting:
+  recommended_strategy: temporal_or_event_level_split_before_window_generation
+  scaler_fit_scope: train_split_only
+  threshold_selection_split: validation
+  test_set_usage: final_evaluation_only
+
+metrics:
+  window_level:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - roc_auc
+    - pr_auc
+  event_level:
+    - event_precision
+    - event_recall
+    - event_f1
+    - lead_time
+    - false_alarm_count
+    - false_alarm_duration
+  primary_reporting_level: event_level_with_window_level_support
+
+risks:
+  data_leakage:
+    severity: high
+    controls:
+      - group_windows_by_asset_and_event
+      - fit_scalers_on_train_only
+      - exclude_target_metadata_and_status_columns_from_features
+      - generate_future_labels_only_after_window_end
+      - select_thresholds_on_validation_only
+  class_imbalance:
+    severity: high
+    controls:
+      - report_class_counts_per_split
+      - report_pr_auc
+      - consider_class_weights_or_balanced_sampling
+  limited_scope:
+    severity: medium
+    controls:
+      - state_wind_farm_a_only_in_v1
+      - reserve_cross_farm_validation_for_future_work
+
+success_criteria:
+  methodological:
+    - windows_do_not_cross_asset_or_event_boundaries
+    - locked_w_h_stride_are_used
+    - preprocessing_is_fit_on_training_data_only
+    - target_and_metadata_columns_are_excluded_from_features
+    - window_and_event_level_metrics_are_reported
+    - class_balance_is_reported_for_each_split
+  predictive:
+    - event_f1_better_than_simple_baselines
+    - useful_event_recall_for_anomaly_events
+    - positive_lead_time_before_anomalous_horizon
+    - false_alarm_count_and_duration_are_reported
+    - pr_auc_exceeds_class_frequency_baseline

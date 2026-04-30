@@ -229,7 +229,20 @@ class PerAssetPipeline:
 
         return summary
 
-    def run_from_csv(self, csv_path: str, asset_name: str = None, label: str = "normal") -> str:
+    def run_from_csv(
+        self,
+        csv_path: str,
+        asset_name: str = None,
+        label: str = "normal",
+        feature_file: str = None,
+        sequence_output_dir: str = None,
+        window_hours: list[int] = None,
+        window_candidates_hours: list[int] = None,
+        top_k_windows: int = 1,
+        skip_window_search: bool = False,
+        expected_feature_count: int = None,
+        combined_scaler: str = "minmax",
+    ) -> str:
         """
         Prepare data from a single raw SCADA CSV file and save it as a
         standalone asset directory — ready for training immediately after.
@@ -248,11 +261,40 @@ class PerAssetPipeline:
             Path to the created asset directory.
         """
         import pandas as pd
+        from data_pipeline.preprocessing.combined_sequence_pipeline import (
+            CombinedSequencePipeline,
+            looks_like_combined_sequence_csv,
+        )
         from data_pipeline.preprocessing.feature_engineering import FeatureEngineer
 
         csv_path = os.path.abspath(csv_path)
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+        if looks_like_combined_sequence_csv(csv_path):
+            output_dir = sequence_output_dir or os.path.join(
+                os.path.dirname(os.path.dirname(self.output_dir)),
+                "sequence_exports",
+            )
+            print("=" * 70)
+            print("Detected combined CSV schema.")
+            print("Using main-project asset/sequence window export.")
+            print("=" * 70)
+            pipeline = CombinedSequencePipeline(
+                csv_path=csv_path,
+                feature_file=feature_file,
+                output_dir=output_dir,
+                selected_windows_hours=window_hours,
+                window_candidates_hours=window_candidates_hours,
+                top_k_windows=top_k_windows,
+                stride_steps=self.stride,
+                val_ratio=self.val_size,
+                expected_feature_count=expected_feature_count,
+                scaler_type=combined_scaler,
+                run_window_search=not skip_window_search,
+            )
+            pipeline.run()
+            return output_dir
 
         if asset_name is None:
             asset_name = os.path.splitext(os.path.basename(csv_path))[0]
