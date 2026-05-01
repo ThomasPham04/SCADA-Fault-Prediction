@@ -37,6 +37,8 @@ DEFAULT_TOP_K_WINDOWS = 1
 DEFAULT_PROBE_EPOCHS = 8
 DEFAULT_PROBE_BATCH_SIZE = 256
 DEFAULT_PROBE_MAX_TRAIN_WINDOWS = 60_000
+DEFAULT_VALIDATION_SOURCE = "train_tail"
+VALIDATION_SOURCES = {"train_tail", "prediction"}
 
 METADATA_COLUMNS = {
     "time_stamp",
@@ -107,6 +109,8 @@ class CombinedSequencePipeline:
         time_resolution_minutes: int = TIME_RESOLUTION,
         expected_feature_count: int | None = None,
         scaler_type: str = "minmax",
+        validation_source: str = DEFAULT_VALIDATION_SOURCE,
+        prediction_val_ratio: float = 0.5,
         run_window_search: bool = True,
         probe_epochs: int = DEFAULT_PROBE_EPOCHS,
         probe_batch_size: int = DEFAULT_PROBE_BATCH_SIZE,
@@ -128,6 +132,8 @@ class CombinedSequencePipeline:
         self.time_resolution_minutes = time_resolution_minutes
         self.expected_feature_count = expected_feature_count
         self.scaler_type = scaler_type.lower()
+        self.validation_source = validation_source.lower()
+        self.prediction_val_ratio = float(prediction_val_ratio)
         self.run_window_search = run_window_search
         self.probe_epochs = probe_epochs
         self.probe_batch_size = probe_batch_size
@@ -136,6 +142,14 @@ class CombinedSequencePipeline:
 
         if self.scaler_type not in ("minmax", "standard"):
             raise ValueError("scaler_type must be 'minmax' or 'standard'")
+        if self.validation_source not in VALIDATION_SOURCES:
+            raise ValueError(
+                f"validation_source must be one of {sorted(VALIDATION_SOURCES)}"
+            )
+        if not 0.0 < self.val_ratio < 1.0:
+            raise ValueError("val_ratio must be between 0 and 1.")
+        if not 0.0 < self.prediction_val_ratio < 1.0:
+            raise ValueError("prediction_val_ratio must be between 0 and 1.")
         if self.prediction_horizon_steps <= 0:
             raise ValueError("prediction_horizon_steps must be positive")
 
@@ -249,7 +263,7 @@ class CombinedSequencePipeline:
             group_train = group[group["train_test"] == "train"].copy()
             group_test = group[group["train_test"] == "prediction"].copy()
 
-            if not group_train.empty:
+            if self.validation_source == "train_tail" and not group_train.empty:
                 split_idx = 1 if len(group_train) == 1 else int(len(group_train) * (1.0 - self.val_ratio))
                 fit_part = group_train.iloc[:split_idx].copy()
                 val_part = group_train.iloc[split_idx:].copy()
@@ -260,7 +274,27 @@ class CombinedSequencePipeline:
                 if not val_part.empty:
                     val_parts.append(val_part)
 
-            if not group_test.empty:
+            elif self.validation_source == "prediction" and not group_train.empty:
+                group_train["data_split"] = "train"
+                train_parts.append(group_train)
+
+            if self.validation_source == "prediction" and not group_test.empty:
+                if len(group_test) == 1:
+                    val_part = group_test.iloc[0:0]
+                    test_part = group_test.copy()
+                else:
+                    split_idx = int(len(group_test) * self.prediction_val_ratio)
+                    split_idx = max(1, min(len(group_test) - 1, split_idx))
+                    val_part = group_test.iloc[:split_idx].copy()
+                    test_part = group_test.iloc[split_idx:].copy()
+
+                val_part["data_split"] = "val"
+                test_part["data_split"] = "test"
+                if not val_part.empty:
+                    val_parts.append(val_part)
+                if not test_part.empty:
+                    test_parts.append(test_part)
+            elif not group_test.empty:
                 group_test["data_split"] = "test"
                 test_parts.append(group_test)
 
@@ -269,6 +303,31 @@ class CombinedSequencePipeline:
         val_df = pd.concat(val_parts, ignore_index=True) if val_parts else empty_split_frame(base_columns)
         test_df = pd.concat(test_parts, ignore_index=True) if test_parts else empty_split_frame(base_columns)
         return train_df, val_df, test_df
+
+    @staticmethod
+    def summarize_split_rows(
+        train_df: pd.DataFrame,
+        val_df: pd.DataFrame,
+        test_df: pd.DataFrame,
+    ) -> dict:
+        summary = {}
+        for split_name, split_df in (("train", train_df), ("val", val_df), ("test", test_df)):
+            rows = len(split_df)
+            positive_rows = int(split_df["label"].sum()) if rows and "label" in split_df.columns else 0
+            has_group_cols = {"asset_id", "sequence_id"}.issubset(split_df.columns)
+            summary[split_name] = {
+                "rows": rows,
+                "positive_rows": positive_rows,
+                "negative_rows": rows - positive_rows,
+                "positive_rate": float(positive_rows / rows) if rows else 0.0,
+                "assets": int(split_df["asset_id"].nunique()) if rows and "asset_id" in split_df.columns else 0,
+                "sequences": (
+                    split_df.groupby(["asset_id", "sequence_id"], sort=False).ngroups
+                    if rows and has_group_cols
+                    else 0
+                ),
+            }
+        return summary
 
     @staticmethod
     def fill_feature_gaps(df: pd.DataFrame, feature_cols: list[str]) -> pd.DataFrame:
@@ -705,6 +764,8 @@ class CombinedSequencePipeline:
                 "stride_steps": int(self.stride_steps),
                 "prediction_horizon_steps": int(self.prediction_horizon_steps),
                 "label_definition": "future_horizon_any_positive_after_input_window",
+                "validation_source": self.validation_source,
+                "prediction_val_ratio": self.prediction_val_ratio,
                 "scaler_type": self.scaler_type,
                 "feature_cols": feature_cols,
                 "train_shape": list(X_train.shape),
@@ -815,6 +876,8 @@ class CombinedSequencePipeline:
                     "stride_steps": int(self.stride_steps),
                     "prediction_horizon_steps": int(self.prediction_horizon_steps),
                     "label_definition": "future_horizon_any_positive_after_input_window",
+                    "validation_source": self.validation_source,
+                    "prediction_val_ratio": self.prediction_val_ratio,
                     "scaler_type": self.scaler_type,
                     "feature_cols": feature_cols,
                     "train_shape": list(X_train.shape),
@@ -883,9 +946,29 @@ class CombinedSequencePipeline:
         print(f"Assets           : {prepared_df['asset_id'].nunique()}")
         print(f"Sequences        : {prepared_df['sequence_id'].nunique()}")
         print(f"Scaler           : {self.scaler_type}")
+        print(f"Validation source: {self.validation_source}")
+        if self.validation_source == "prediction":
+            print(f"Prediction val % : {self.prediction_val_ratio:.2f}")
         print(f"Future horizon   : {self.prediction_horizon_steps} steps")
 
         train_df, val_df, test_df = self.split_train_val_test_by_sequence(prepared_df)
+        split_summary = self.summarize_split_rows(train_df, val_df, test_df)
+        save_metadata(
+            self.output_dir / "split_summary.json",
+            {
+                "validation_source": self.validation_source,
+                "val_ratio": self.val_ratio,
+                "prediction_val_ratio": self.prediction_val_ratio,
+                "splits": split_summary,
+            },
+        )
+        print("Split rows       :")
+        for split_name in ("train", "val", "test"):
+            split_info = split_summary[split_name]
+            print(
+                f"  {split_name:<5} rows={split_info['rows']:,} "
+                f"positive_rate={split_info['positive_rate']:.3f}"
+            )
         scalers = self.fit_asset_scalers(train_df, feature_cols)
 
         train_df_sc = self.transform_by_asset(train_df, feature_cols, scalers)
@@ -901,6 +984,8 @@ class CombinedSequencePipeline:
                 "top_k": int(len(best_windows)),
                 "prediction_horizon_steps": int(self.prediction_horizon_steps),
                 "label_definition": "future_horizon_any_positive_after_input_window",
+                "validation_source": self.validation_source,
+                "prediction_val_ratio": self.prediction_val_ratio,
                 "ranked_results": results_df.to_dict(orient="records"),
             },
         )
@@ -941,6 +1026,10 @@ class CombinedSequencePipeline:
             "output_dir": str(self.output_dir),
             "prediction_horizon_steps": int(self.prediction_horizon_steps),
             "label_definition": "future_horizon_any_positive_after_input_window",
+            "validation_source": self.validation_source,
+            "val_ratio": self.val_ratio,
+            "prediction_val_ratio": self.prediction_val_ratio,
+            "split_summary": split_summary,
             "exports": export_summaries,
         }
         save_metadata(self.output_dir / "export_summary.json", payload)

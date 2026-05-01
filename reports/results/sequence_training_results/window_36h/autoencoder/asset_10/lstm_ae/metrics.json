@@ -1,0 +1,101 @@
+{
+  "model_name": "lstm_ae",
+  "asset_id": 10,
+  "train_shape": [
+    29587,
+    216,
+    17
+  ],
+  "val_normal_shape": [
+    4708,
+    216,
+    17
+  ],
+  "val_labeled_shape": [
+    6331,
+    216,
+    17
+  ],
+  "selected_threshold": 0.032292549684643734,
+  "validation_event_metrics": {
+    "threshold": 0.032292549684643734,
+    "accuracy": 0.8,
+    "precision": 0.75,
+    "recall": 1.0,
+    "f1": 0.8571428571428571,
+    "pr_auc": 0.9166666666666665,
+    "roc_auc": 0.8333333333333333,
+    "confusion_matrix": [
+      [
+        1,
+        1
+      ],
+      [
+        0,
+        3
+      ]
+    ],
+    "support": 5,
+    "positive_count": 3,
+    "negative_count": 2
+  },
+  "test_event_metrics": {
+    "threshold": 0.032292549684643734,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pr_auc": 1.0,
+    "roc_auc": 1.0,
+    "confusion_matrix": [
+      [
+        2,
+        0
+      ],
+      [
+        0,
+        3
+      ]
+    ],
+    "support": 5,
+    "positive_count": 3,
+    "negative_count": 2
+  },
+  "test_window_metrics": {
+    "threshold": 0.032292549684643734,
+    "accuracy": 0.5634660421545667,
+    "precision": 1.0,
+    "recall": 0.2181208053691275,
+    "f1": 0.3581267217630854,
+    "pr_auc": 0.7581528397974084,
+    "roc_auc": 0.6376274847516494,
+    "confusion_matrix": [
+      [
+        943,
+        0
+      ],
+      [
+        932,
+        260
+      ]
+    ],
+    "support": 2135,
+    "positive_count": 1192,
+    "negative_count": 943
+  },
+  "summary": {
+    "model_name": "lstm_ae",
+    "asset_id": 10,
+    "threshold": 0.032292549684643734,
+    "event_precision": 1.0,
+    "event_recall": 1.0,
+    "event_f1": 1.0,
+    "event_pr_auc": 1.0,
+    "event_roc_auc": 1.0,
+    "window_precision": 1.0,
+    "window_recall": 0.2181208053691275,
+    "window_f1": 0.3581267217630854,
+    "window_pr_auc": 0.7581528397974084,
+    "window_roc_auc": 0.6376274847516494
+  }
+}

@@ -55,6 +55,8 @@ def run_prepare(args: argparse.Namespace) -> None:
         top_k_windows=args.top_k_windows,
         expected_feature_count=args.expected_feature_count,
         scaler_type=args.combined_scaler,
+        validation_source=args.validation_source,
+        prediction_val_ratio=args.prediction_val_ratio,
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
     )
@@ -162,6 +164,27 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
         default="minmax",
         choices=["minmax", "standard"],
         help="Scaler for combined CSV exports.",
+    )
+    parser.add_argument(
+        "--validation-source",
+        type=str,
+        default="train_tail",
+        choices=["train_tail", "prediction"],
+        help=(
+            "How to create the validation split. 'train_tail' keeps the legacy "
+            "behavior by using the tail of each train segment. 'prediction' "
+            "uses the first part of each prediction segment for validation and "
+            "the rest for test."
+        ),
+    )
+    parser.add_argument(
+        "--prediction-val-ratio",
+        type=float,
+        default=0.5,
+        help=(
+            "When --validation-source prediction is used, fraction of each "
+            "asset_id + sequence_id prediction segment assigned to validation."
+        ),
     )
     parser.add_argument("--seed", type=int, default=42)
 

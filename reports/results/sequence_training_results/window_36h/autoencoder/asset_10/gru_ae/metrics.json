@@ -1,0 +1,101 @@
+{
+  "model_name": "gru_ae",
+  "asset_id": 10,
+  "train_shape": [
+    29587,
+    216,
+    17
+  ],
+  "val_normal_shape": [
+    4708,
+    216,
+    17
+  ],
+  "val_labeled_shape": [
+    6331,
+    216,
+    17
+  ],
+  "selected_threshold": 0.03974858950823623,
+  "validation_event_metrics": {
+    "threshold": 0.03974858950823623,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pr_auc": 1.0,
+    "roc_auc": 1.0,
+    "confusion_matrix": [
+      [
+        2,
+        0
+      ],
+      [
+        0,
+        3
+      ]
+    ],
+    "support": 5,
+    "positive_count": 3,
+    "negative_count": 2
+  },
+  "test_event_metrics": {
+    "threshold": 0.03974858950823623,
+    "accuracy": 0.6,
+    "precision": 0.6666666666666666,
+    "recall": 0.6666666666666666,
+    "f1": 0.6666666666666666,
+    "pr_auc": 0.9166666666666665,
+    "roc_auc": 0.8333333333333333,
+    "confusion_matrix": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "support": 5,
+    "positive_count": 3,
+    "negative_count": 2
+  },
+  "test_window_metrics": {
+    "threshold": 0.03974858950823623,
+    "accuracy": 0.5114754098360655,
+    "precision": 0.9933774834437086,
+    "recall": 0.12583892617449666,
+    "f1": 0.22338049143708116,
+    "pr_auc": 0.7539168214912572,
+    "roc_auc": 0.6332140035727758,
+    "confusion_matrix": [
+      [
+        942,
+        1
+      ],
+      [
+        1042,
+        150
+      ]
+    ],
+    "support": 2135,
+    "positive_count": 1192,
+    "negative_count": 943
+  },
+  "summary": {
+    "model_name": "gru_ae",
+    "asset_id": 10,
+    "threshold": 0.03974858950823623,
+    "event_precision": 0.6666666666666666,
+    "event_recall": 0.6666666666666666,
+    "event_f1": 0.6666666666666666,
+    "event_pr_auc": 0.9166666666666665,
+    "event_roc_auc": 0.8333333333333333,
+    "window_precision": 0.9933774834437086,
+    "window_recall": 0.12583892617449666,
+    "window_f1": 0.22338049143708116,
+    "window_pr_auc": 0.7539168214912572,
+    "window_roc_auc": 0.6332140035727758
+  }
+}

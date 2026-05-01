@@ -1,0 +1,99 @@
+{
+  "model_name": "cnn_lstm",
+  "train_shape": [
+    161590,
+    216,
+    17
+  ],
+  "val_shape": [
+    27874,
+    216,
+    17
+  ],
+  "test_shape": [
+    7654,
+    216,
+    17
+  ],
+  "selected_threshold": 0.8000000000000002,
+  "validation_event_metrics": {
+    "threshold": 0.8000000000000002,
+    "accuracy": 0.9090909090909091,
+    "precision": 0.8571428571428571,
+    "recall": 1.0,
+    "f1": 0.9230769230769231,
+    "pr_auc": 0.9880952380952381,
+    "roc_auc": 0.9833333333333334,
+    "confusion_matrix": [
+      [
+        8,
+        2
+      ],
+      [
+        0,
+        12
+      ]
+    ],
+    "support": 22,
+    "positive_count": 12,
+    "negative_count": 10
+  },
+  "test_event_metrics": {
+    "threshold": 0.8000000000000002,
+    "accuracy": 0.6818181818181818,
+    "precision": 0.6666666666666666,
+    "recall": 0.8333333333333334,
+    "f1": 0.7407407407407407,
+    "pr_auc": 0.8817567304699659,
+    "roc_auc": 0.8583333333333334,
+    "confusion_matrix": [
+      [
+        5,
+        5
+      ],
+      [
+        2,
+        10
+      ]
+    ],
+    "support": 22,
+    "positive_count": 12,
+    "negative_count": 10
+  },
+  "test_window_metrics": {
+    "threshold": 0.8000000000000002,
+    "accuracy": 0.702247191011236,
+    "precision": 0.9601328903654485,
+    "recall": 0.3943777292576419,
+    "f1": 0.559102340878313,
+    "pr_auc": 0.8460949190432223,
+    "roc_auc": 0.8214524780838559,
+    "confusion_matrix": [
+      [
+        3930,
+        60
+      ],
+      [
+        2219,
+        1445
+      ]
+    ],
+    "support": 7654,
+    "positive_count": 3664,
+    "negative_count": 3990
+  },
+  "summary": {
+    "model_name": "cnn_lstm",
+    "threshold": 0.8000000000000002,
+    "event_precision": 0.6666666666666666,
+    "event_recall": 0.8333333333333334,
+    "event_f1": 0.7407407407407407,
+    "event_pr_auc": 0.8817567304699659,
+    "event_roc_auc": 0.8583333333333334,
+    "window_precision": 0.9601328903654485,
+    "window_recall": 0.3943777292576419,
+    "window_f1": 0.559102340878313,
+    "window_pr_auc": 0.8460949190432223,
+    "window_roc_auc": 0.8214524780838559
+  }
+}

@@ -1,0 +1,4 @@
+﻿farm,event_info_rows,event_csv_files,asset_count,anomaly_events,normal_events,feature_description_rows,angle_sensor_rows,counter_sensor_rows,csv_columns_min,csv_columns_max,csv_feature_columns_min,csv_feature_columns_max,has_any_label_column
+Wind Farm A,22,22,5,12,10,54,4,0,87,87,81,81,True
+Wind Farm B,15,15,9,6,9,63,3,4,257,257,252,252,False
+Wind Farm C,58,58,22,27,31,238,12,0,957,957,952,952,False

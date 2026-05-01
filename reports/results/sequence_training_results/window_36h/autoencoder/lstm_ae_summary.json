@@ -1,0 +1,93 @@
+{
+  "architecture_summary": {
+    "model_name": "lstm_ae",
+    "asset_count": 5,
+    "macro_event_precision": 0.6,
+    "macro_event_recall": 0.8,
+    "macro_event_f1": 0.6761904761904762,
+    "macro_event_pr_auc": 0.85,
+    "macro_event_roc_auc": 0.8,
+    "pooled_event_precision": 0.7333333333333333,
+    "pooled_event_recall": 0.9166666666666666,
+    "pooled_event_f1": 0.8148148148148148,
+    "pooled_event_pr_auc": 0.9342333592333593,
+    "pooled_event_roc_auc": 0.9083333333333333
+  },
+  "asset_summaries": [
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 0,
+      "threshold": 0.033371256142854695,
+      "event_precision": 0.75,
+      "event_recall": 1.0,
+      "event_f1": 0.8571428571428571,
+      "event_pr_auc": 1.0,
+      "event_roc_auc": 1.0,
+      "window_precision": 0.7758620689655172,
+      "window_recall": 0.10044642857142858,
+      "window_f1": 0.17786561264822134,
+      "window_pr_auc": 0.6282798576028621,
+      "window_roc_auc": 0.5794826514466547
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 10,
+      "threshold": 0.032292549684643734,
+      "event_precision": 1.0,
+      "event_recall": 1.0,
+      "event_f1": 1.0,
+      "event_pr_auc": 1.0,
+      "event_roc_auc": 1.0,
+      "window_precision": 1.0,
+      "window_recall": 0.2181208053691275,
+      "window_f1": 0.3581267217630854,
+      "window_pr_auc": 0.7581528397974084,
+      "window_roc_auc": 0.6376274847516494
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 11,
+      "threshold": 0.08091846432536835,
+      "event_precision": 0.0,
+      "event_recall": 0.0,
+      "event_f1": 0.0,
+      "event_pr_auc": 0.25,
+      "event_roc_auc": 0.0,
+      "window_precision": 0.0,
+      "window_recall": 0.0,
+      "window_f1": 0.0,
+      "window_pr_auc": 0.4113523166671432,
+      "window_roc_auc": 0.7609278133127153
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 13,
+      "threshold": 0.013670682162046434,
+      "event_precision": 0.5,
+      "event_recall": 1.0,
+      "event_f1": 0.6666666666666666,
+      "event_pr_auc": 1.0,
+      "event_roc_auc": 1.0,
+      "window_precision": 0.5351351351351351,
+      "window_recall": 0.24205378973105135,
+      "window_f1": 0.3333333333333333,
+      "window_pr_auc": 0.5224248540481488,
+      "window_roc_auc": 0.5780461993212422
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 21,
+      "threshold": 0.014531627669930458,
+      "event_precision": 0.75,
+      "event_recall": 1.0,
+      "event_f1": 0.8571428571428571,
+      "event_pr_auc": 1.0,
+      "event_roc_auc": 1.0,
+      "window_precision": 0.7792207792207793,
+      "window_recall": 0.21951219512195122,
+      "window_f1": 0.3425309229305423,
+      "window_pr_auc": 0.7276983097309742,
+      "window_roc_auc": 0.5965801579723982
+    }
+  ]
+}

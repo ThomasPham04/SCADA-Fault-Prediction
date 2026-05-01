@@ -1,0 +1,99 @@
+{
+  "model_name": "gru",
+  "train_shape": [
+    161590,
+    216,
+    17
+  ],
+  "val_shape": [
+    27874,
+    216,
+    17
+  ],
+  "test_shape": [
+    7654,
+    216,
+    17
+  ],
+  "selected_threshold": 0.8500000000000002,
+  "validation_event_metrics": {
+    "threshold": 0.8500000000000002,
+    "accuracy": 0.6363636363636364,
+    "precision": 0.625,
+    "recall": 0.8333333333333334,
+    "f1": 0.7142857142857143,
+    "pr_auc": 0.6320284154842978,
+    "roc_auc": 0.6,
+    "confusion_matrix": [
+      [
+        4,
+        6
+      ],
+      [
+        2,
+        10
+      ]
+    ],
+    "support": 22,
+    "positive_count": 12,
+    "negative_count": 10
+  },
+  "test_event_metrics": {
+    "threshold": 0.8500000000000002,
+    "accuracy": 0.6818181818181818,
+    "precision": 0.7272727272727273,
+    "recall": 0.6666666666666666,
+    "f1": 0.6956521739130435,
+    "pr_auc": 0.8204758204758206,
+    "roc_auc": 0.775,
+    "confusion_matrix": [
+      [
+        7,
+        3
+      ],
+      [
+        4,
+        8
+      ]
+    ],
+    "support": 22,
+    "positive_count": 12,
+    "negative_count": 10
+  },
+  "test_window_metrics": {
+    "threshold": 0.8500000000000002,
+    "accuracy": 0.5894956885288738,
+    "precision": 0.9015384615384615,
+    "recall": 0.15993449781659388,
+    "f1": 0.2716736207695874,
+    "pr_auc": 0.7286156342289106,
+    "roc_auc": 0.7302781038294426,
+    "confusion_matrix": [
+      [
+        3926,
+        64
+      ],
+      [
+        3078,
+        586
+      ]
+    ],
+    "support": 7654,
+    "positive_count": 3664,
+    "negative_count": 3990
+  },
+  "summary": {
+    "model_name": "gru",
+    "threshold": 0.8500000000000002,
+    "event_precision": 0.7272727272727273,
+    "event_recall": 0.6666666666666666,
+    "event_f1": 0.6956521739130435,
+    "event_pr_auc": 0.8204758204758206,
+    "event_roc_auc": 0.775,
+    "window_precision": 0.9015384615384615,
+    "window_recall": 0.15993449781659388,
+    "window_f1": 0.2716736207695874,
+    "window_pr_auc": 0.7286156342289106,
+    "window_roc_auc": 0.7302781038294426
+  }
+}

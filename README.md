@@ -113,6 +113,17 @@ $features = "results\results\final_features.csv"
 python src/main.py prepare --csv $csv --feature-file $features --window-hours 24
 ```
 
+For the current combined Wind Farm A experiment, use a prediction-like
+validation split so threshold selection sees data similar to the final test
+segment:
+
+```powershell
+$csv = "D:\Final Project\C2C_Windturbine\df_final.csv"
+$features = "D:\Final Project\C2C_Windturbine\final_features.csv"
+$exports = "Dataset\processed\sequence_exports_prediction_val"
+python src/main.py prepare --csv $csv --feature-file $features --window-hours 24 --validation-source prediction --prediction-val-ratio 0.5 --sequence-output-dir $exports
+```
+
 Default output:
 
 ```text
@@ -150,6 +161,11 @@ Common options:
 - `--top-k-windows 2`: export the best N windows after window search.
 - `--combined-scaler minmax`: use `minmax` or `standard` scaling.
 - `--expected-feature-count 17`: fail if the feature list has the wrong size.
+- `--validation-source train_tail|prediction`: choose whether validation comes
+  from the legacy tail of each train segment or from the first part of each
+  prediction segment.
+- `--prediction-val-ratio 0.5`: when using `--validation-source prediction`,
+  send this fraction of each prediction segment to validation.
 - `--sequence-output-dir <DIR>`: write exports to a custom location.
 
 ### 2. Train Sequence Models
