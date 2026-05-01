@@ -97,6 +97,9 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         save_predictions=not args.no_save_predictions,
         classifier_epochs=args.classifier_epochs,
         classifier_batch_size=args.classifier_batch_size,
+        classifier_learning_rate=args.classifier_learning_rate,
+        classifier_dropout=args.classifier_dropout,
+        classifier_l2=args.classifier_l2,
         autoencoder_epochs=args.autoencoder_epochs,
         autoencoder_batch_size=args.autoencoder_batch_size,
     )
@@ -276,6 +279,27 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--classifier-epochs", type=int, default=25)
     parser.add_argument("--classifier-batch-size", type=int, default=256)
+    parser.add_argument(
+        "--classifier-learning-rate",
+        type=float,
+        default=1e-3,
+        help="Adam learning rate for supervised classifier models.",
+    )
+    parser.add_argument(
+        "--classifier-dropout",
+        type=float,
+        default=None,
+        help=(
+            "Override classifier dropout rate for all classifier dropout layers. "
+            "When omitted, each architecture uses its built-in defaults."
+        ),
+    )
+    parser.add_argument(
+        "--classifier-l2",
+        type=float,
+        default=0.0,
+        help="L2 regularization strength for classifier Conv/RNN/Dense kernels.",
+    )
     parser.add_argument("--autoencoder-epochs", type=int, default=30)
     parser.add_argument("--autoencoder-batch-size", type=int, default=128)
 

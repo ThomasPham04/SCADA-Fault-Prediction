@@ -32,7 +32,7 @@ from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
 )
-from tensorflow.keras import callbacks, layers, models
+from tensorflow.keras import callbacks, layers, models, regularizers
 
 
 def set_random_seed(seed: int) -> None:
@@ -133,44 +133,110 @@ def load_autoencoder_asset_bundle(asset_dir: Path) -> dict:
     }
 
 
-def build_classifier_model(model_name: str, input_shape: tuple):
+def build_classifier_model(
+    model_name: str,
+    input_shape: tuple,
+    learning_rate: float = 1e-3,
+    dropout_rate: float | None = None,
+    l2_strength: float = 0.0,
+):
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be positive.")
+    if dropout_rate is not None and not 0.0 <= dropout_rate < 1.0:
+        raise ValueError("dropout_rate must be in [0, 1).")
+    if l2_strength < 0:
+        raise ValueError("l2_strength must be non-negative.")
+
     inputs = layers.Input(shape=input_shape, name="input_sequence")
+    regularizer = regularizers.l2(l2_strength) if l2_strength > 0 else None
+    recurrent_dropout = 0.25 if dropout_rate is None else dropout_rate
+    conv_dropout = 0.20 if dropout_rate is None else dropout_rate
 
     if model_name == "lstm":
-        x = layers.LSTM(96, return_sequences=True)(inputs)
-        x = layers.Dropout(0.25)(x)
-        x = layers.LSTM(48)(x)
-        x = layers.Dropout(0.25)(x)
+        x = layers.LSTM(
+            96,
+            return_sequences=True,
+            kernel_regularizer=regularizer,
+            recurrent_regularizer=regularizer,
+        )(inputs)
+        x = layers.Dropout(recurrent_dropout)(x)
+        x = layers.LSTM(
+            48,
+            kernel_regularizer=regularizer,
+            recurrent_regularizer=regularizer,
+        )(x)
+        x = layers.Dropout(recurrent_dropout)(x)
     elif model_name == "gru":
-        x = layers.GRU(96, return_sequences=True)(inputs)
-        x = layers.Dropout(0.25)(x)
-        x = layers.GRU(48)(x)
-        x = layers.Dropout(0.25)(x)
+        x = layers.GRU(
+            96,
+            return_sequences=True,
+            kernel_regularizer=regularizer,
+            recurrent_regularizer=regularizer,
+        )(inputs)
+        x = layers.Dropout(recurrent_dropout)(x)
+        x = layers.GRU(
+            48,
+            kernel_regularizer=regularizer,
+            recurrent_regularizer=regularizer,
+        )(x)
+        x = layers.Dropout(recurrent_dropout)(x)
     elif model_name == "cnn_lstm":
-        x = layers.Conv1D(64, 5, padding="same", activation="relu")(inputs)
+        x = layers.Conv1D(
+            64,
+            5,
+            padding="same",
+            activation="relu",
+            kernel_regularizer=regularizer,
+        )(inputs)
         x = layers.MaxPooling1D(pool_size=2)(x)
-        x = layers.Dropout(0.20)(x)
-        x = layers.Conv1D(64, 3, padding="same", activation="relu")(x)
+        x = layers.Dropout(conv_dropout)(x)
+        x = layers.Conv1D(
+            64,
+            3,
+            padding="same",
+            activation="relu",
+            kernel_regularizer=regularizer,
+        )(x)
         x = layers.MaxPooling1D(pool_size=2)(x)
-        x = layers.LSTM(64)(x)
-        x = layers.Dropout(0.25)(x)
+        x = layers.LSTM(
+            64,
+            kernel_regularizer=regularizer,
+            recurrent_regularizer=regularizer,
+        )(x)
+        x = layers.Dropout(recurrent_dropout)(x)
     elif model_name == "cnn_gru":
-        x = layers.Conv1D(64, 5, padding="same", activation="relu")(inputs)
+        x = layers.Conv1D(
+            64,
+            5,
+            padding="same",
+            activation="relu",
+            kernel_regularizer=regularizer,
+        )(inputs)
         x = layers.MaxPooling1D(pool_size=2)(x)
-        x = layers.Dropout(0.20)(x)
-        x = layers.Conv1D(64, 3, padding="same", activation="relu")(x)
+        x = layers.Dropout(conv_dropout)(x)
+        x = layers.Conv1D(
+            64,
+            3,
+            padding="same",
+            activation="relu",
+            kernel_regularizer=regularizer,
+        )(x)
         x = layers.MaxPooling1D(pool_size=2)(x)
-        x = layers.GRU(64)(x)
-        x = layers.Dropout(0.25)(x)
+        x = layers.GRU(
+            64,
+            kernel_regularizer=regularizer,
+            recurrent_regularizer=regularizer,
+        )(x)
+        x = layers.Dropout(recurrent_dropout)(x)
     else:
         raise ValueError(f"Unsupported classifier model: {model_name}")
 
-    x = layers.Dense(32, activation="relu")(x)
+    x = layers.Dense(32, activation="relu", kernel_regularizer=regularizer)(x)
     outputs = layers.Dense(1, activation="sigmoid")(x)
 
     model = models.Model(inputs=inputs, outputs=outputs, name=model_name)
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
         loss="binary_crossentropy",
         metrics=[
             tf.keras.metrics.AUC(curve="PR", name="pr_auc"),
@@ -556,6 +622,9 @@ def run_classifier_experiment(
     random_seed: int,
     epochs: int,
     batch_size: int,
+    learning_rate: float,
+    dropout_rate: float | None,
+    l2_strength: float,
     overwrite: bool,
     save_predictions: bool,
 ) -> dict:
@@ -579,7 +648,13 @@ def run_classifier_experiment(
     y_test = np.asarray(bundle["y_test"]).astype(np.int8)
 
     input_shape = (int(X_train.shape[1]), int(X_train.shape[2]))
-    model = build_classifier_model(model_name, input_shape)
+    model = build_classifier_model(
+        model_name,
+        input_shape,
+        learning_rate=learning_rate,
+        dropout_rate=dropout_rate,
+        l2_strength=l2_strength,
+    )
     model_path = output_dir / "model.keras"
 
     history = model.fit(
@@ -670,6 +745,11 @@ def run_classifier_experiment(
         "train_shape": list(X_train.shape),
         "val_shape": list(X_val.shape),
         "test_shape": list(X_test.shape),
+        "hyperparameters": {
+            "learning_rate": float(learning_rate),
+            "dropout_rate": None if dropout_rate is None else float(dropout_rate),
+            "l2_strength": float(l2_strength),
+        },
         "selected_threshold": best_threshold,
         "validation_metrics": val_metrics,
         "test_metrics": test_metrics,

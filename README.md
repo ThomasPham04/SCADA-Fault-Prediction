@@ -219,6 +219,9 @@ Common options:
 - `--exports-dir <DIR>`: read sequence exports from a custom folder.
 - `--results-dir <DIR>`: write training results to a custom folder.
 - `--classifier-models lstm gru cnn_lstm cnn_gru`: choose classifiers.
+- `--classifier-learning-rate 0.0003`: set the classifier Adam learning rate.
+- `--classifier-dropout 0.35`: override classifier dropout layers.
+- `--classifier-l2 0.0001`: add L2 regularization to classifier kernels.
 - `--autoencoder-models lstm_ae gru_ae`: choose autoencoder architectures.
 - `--assets 10 11`: restrict autoencoder training to specific assets.
 - `--overwrite`: retrain even when metrics already exist.

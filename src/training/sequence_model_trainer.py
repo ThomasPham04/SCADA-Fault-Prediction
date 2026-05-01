@@ -65,6 +65,9 @@ class SequenceTrainingConfig:
     save_predictions: bool = True
     classifier_epochs: int = 25
     classifier_batch_size: int = 256
+    classifier_learning_rate: float = 1e-3
+    classifier_dropout: float | None = None
+    classifier_l2: float = 0.0
     autoencoder_epochs: int = 30
     autoencoder_batch_size: int = 128
 
@@ -75,6 +78,8 @@ class SequenceTrainingConfig:
         self.classifier_models = [str(model) for model in self.classifier_models]
         self.autoencoder_models = [str(model) for model in self.autoencoder_models]
         self.asset_filter = _as_int_list(self.asset_filter)
+        self.classifier_learning_rate = float(self.classifier_learning_rate)
+        self.classifier_l2 = float(self.classifier_l2)
 
 
 class SequenceModelTrainer:
@@ -116,6 +121,9 @@ class SequenceModelTrainer:
                 random_seed=cfg.random_seed,
                 epochs=cfg.classifier_epochs,
                 batch_size=cfg.classifier_batch_size,
+                learning_rate=cfg.classifier_learning_rate,
+                dropout_rate=cfg.classifier_dropout,
+                l2_strength=cfg.classifier_l2,
                 overwrite=cfg.overwrite,
                 save_predictions=cfg.save_predictions,
             )
@@ -223,6 +231,9 @@ class SequenceModelTrainer:
         print(f"Results folder : {cfg.results_dir}")
         print(f"Windows to run : {cfg.windows}")
         print(f"Classifier set : {cfg.classifier_models}")
+        print(f"Classifier lr  : {cfg.classifier_learning_rate}")
+        print(f"Classifier drop: {cfg.classifier_dropout}")
+        print(f"Classifier L2  : {cfg.classifier_l2}")
         print(f"Autoencoder set: {cfg.autoencoder_models}")
         print(f"Asset filter   : {cfg.asset_filter}")
 
