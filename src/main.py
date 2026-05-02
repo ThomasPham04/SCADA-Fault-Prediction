@@ -26,6 +26,43 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 
+def run_prepare_care(args: argparse.Namespace) -> None:
+    """Build combined CSV from raw CARE per-event files, then prepare sequence exports."""
+    import os
+    from config import PROCESSED_DATA_DIR, WIND_FARM_A_DIR, WIND_FARM_A_DATASETS
+    from data_pipeline.preprocessing.build_combined_csv import CAREToCombinedCSV
+    from data_pipeline.preprocessing.combined_sequence_pipeline import CombinedSequencePipeline
+
+    farm_dir = args.farm_dir or WIND_FARM_A_DIR
+    datasets_dir = args.datasets_dir or os.path.join(farm_dir, "datasets")
+    if args.combined_csv_output:
+        combined_csv = args.combined_csv_output
+    else:
+        farm_name = os.path.basename(os.path.normpath(farm_dir))
+        combined_csv = os.path.join(PROCESSED_DATA_DIR, farm_name, "combined.csv")
+
+    print(f"Step 1/2: Building combined CSV from CARE event CSVs...")
+    builder = CAREToCombinedCSV(farm_dir=farm_dir, datasets_dir=datasets_dir)
+    builder.build(output_path=combined_csv)
+
+    print(f"\nStep 2/2: Preparing sequence exports from combined CSV...")
+    pipeline = CombinedSequencePipeline(
+        csv_path=combined_csv,
+        feature_file=args.feature_file,
+        output_dir=args.sequence_output_dir,
+        selected_windows_hours=args.window_hours,
+        window_candidates_hours=args.window_candidates_hours,
+        top_k_windows=args.top_k_windows,
+        expected_feature_count=args.expected_feature_count,
+        scaler_type=args.combined_scaler,
+        validation_source=args.validation_source,
+        prediction_val_ratio=args.prediction_val_ratio,
+        run_window_search=not args.skip_window_search,
+        random_seed=args.seed,
+    )
+    pipeline.run()
+
+
 def run_prepare(args: argparse.Namespace) -> None:
     """Prepare classifier and autoencoder exports from a combined CSV."""
     if not args.csv:
@@ -102,6 +139,7 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         classifier_l2=args.classifier_l2,
         autoencoder_epochs=args.autoencoder_epochs,
         autoencoder_batch_size=args.autoencoder_batch_size,
+        autoencoder_scope=args.autoencoder_scope,
     )
     SequenceModelTrainer(config).run()
 
@@ -302,6 +340,60 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--autoencoder-epochs", type=int, default=30)
     parser.add_argument("--autoencoder-batch-size", type=int, default=128)
+    parser.add_argument(
+        "--autoencoder-scope",
+        type=str,
+        default="per_asset",
+        choices=["per_asset", "global", "both"],
+        help=(
+            "Autoencoder training scope. 'per_asset' trains one model per turbine, "
+            "'global' trains one pooled model across turbines, and 'both' runs both."
+        ),
+    )
+
+
+def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
+    """Flags for prepare-care: raw CARE data → combined CSV → sequence exports."""
+    parser.add_argument(
+        "--farm-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help="Path to wind farm root directory containing event_info.csv. "
+             "Defaults to Wind Farm A.",
+    )
+    parser.add_argument(
+        "--datasets-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help="Path to datasets sub-directory. Defaults to <farm-dir>/datasets.",
+    )
+    parser.add_argument(
+        "--combined-csv-output",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Where to save the combined CSV. "
+             "Defaults to Dataset/processed/<farm-name>/combined.csv",
+    )
+    # Reuse combined-csv flags for the sequence export step
+    parser.add_argument("--feature-file", type=str, default=None, metavar="PATH")
+    parser.add_argument("--sequence-output-dir", type=str, default=None, metavar="DIR")
+    parser.add_argument("--window-hours", type=int, nargs="+", default=None, metavar="H")
+    parser.add_argument("--window-candidates-hours", type=int, nargs="+", default=None, metavar="H")
+    parser.add_argument("--top-k-windows", type=int, default=1)
+    parser.add_argument("--skip-window-search", action="store_true")
+    parser.add_argument("--expected-feature-count", type=int, default=None)
+    parser.add_argument("--combined-scaler", type=str, default="minmax", choices=["minmax", "standard"])
+    parser.add_argument(
+        "--validation-source",
+        type=str,
+        default="train_tail",
+        choices=["train_tail", "prediction"],
+    )
+    parser.add_argument("--prediction-val-ratio", type=float, default=0.5)
+    parser.add_argument("--seed", type=int, default=42)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -309,12 +401,23 @@ def build_parser() -> argparse.ArgumentParser:
         prog="main.py",
         description="SCADA Fault Prediction - combined-sequence pipeline CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Typical workflow (CARE dataset):\n"
+            "  1. python src/main.py prepare-care\n"
+            "  2. python src/main.py train-sequences --skip-classifiers\n"
+        ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    prepare_care_parser = subparsers.add_parser(
+        "prepare-care",
+        help="Build combined CSV from raw CARE event files, then prepare sequence exports.",
+    )
+    add_prepare_care_flags(prepare_care_parser)
+
     prepare_parser = subparsers.add_parser(
         "prepare",
-        help="Prepare sequence exports from a combined CSV.",
+        help="Prepare sequence exports from an already-built combined CSV.",
     )
     add_combined_csv_flags(prepare_parser)
 
@@ -331,7 +434,9 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.command == "prepare":
+    if args.command == "prepare-care":
+        run_prepare_care(args)
+    elif args.command == "prepare":
         run_prepare(args)
     elif args.command == "train-sequences":
         run_train_sequences(args)

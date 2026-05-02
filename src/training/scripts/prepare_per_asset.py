@@ -16,6 +16,7 @@ Usage:
     python -m src.training.scripts.prepare_per_asset
 """
 
+import json
 import os
 import sys
 from typing import Dict, List, Optional, Tuple
@@ -98,20 +99,20 @@ class PerAssetPipeline:
         self._seq_maker    = SequenceMaker(window_size=window_size, stride=stride)
 
     def _save_test_events(self, asset_dir: str, test_data_scaled: dict) -> None:
-        """Save each test event as an individual NPZ file for event-level evaluation."""
-        test_dir = os.path.join(asset_dir, "test_by_event")
+        """Save each test event as a sequence NPZ file for autoencoder evaluation."""
+        test_dir = os.path.join(asset_dir, "test_by_sequence")
         os.makedirs(test_dir, exist_ok=True)
         for event_id, data in test_data_scaled.items():
-            path = os.path.join(test_dir, f"event_{event_id}.npz")
+            path = os.path.join(test_dir, f"sequence_{event_id}.npz")
             np.savez_compressed(
                 path,
                 X=data["X"],
-                y=data["y"],
-                label=data["label"],
+                target_label=data["seq_labels"],
+                asset_id=np.array([int(data.get("asset_id", -1))]),
+                sequence_id=np.array([int(event_id)]),
                 time_stamps=data.get("time_stamps", []),
-                asset_id=data.get("asset_id", -1),
             )
-        print(f"  Saved {len(test_data_scaled)} test events → {test_dir}")
+        print(f"  Saved {len(test_data_scaled)} test sequences → {test_dir}")
 
     def run(self, asset_filter: Optional[List[str]] = None) -> dict:
         """
@@ -195,14 +196,17 @@ class PerAssetPipeline:
                 "asset_id": asset_id,
                 "event_ids": event_ids,
                 "feature_cols": feature_cols,
-                "n_features": X_train_sc.shape[2],
-                "window_size": self.window_size,
-                "stride": self.stride,
-                "n_train_seq": len(X_train_sc),
-                "n_val_seq":   len(X_val_sc),
+                "n_features": int(X_train_sc.shape[2]),
+                "window_size": int(self.window_size),
+                "stride": int(self.stride),
+                "n_train_seq": int(len(X_train_sc)),
+                "n_val_seq":   int(len(X_val_sc)),
                 "n_test_events": len(test_scaled),
                 "event_contributions": contributions,
             }
+            # Save JSON for load_autoencoder_asset_bundle; keep pkl for backward compat
+            with open(os.path.join(asset_dir, "metadata.json"), "w", encoding="utf-8") as fh:
+                json.dump(metadata, fh, indent=2, default=str)
             joblib.dump(metadata, os.path.join(asset_dir, "metadata.pkl"))
 
             summary[asset_id] = {

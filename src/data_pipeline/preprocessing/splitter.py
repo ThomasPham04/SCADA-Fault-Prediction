@@ -17,6 +17,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 from config import WINDOW_SIZE, NORMAL_STATUS
 from data_pipeline.loaders.event_loader import EventLoader
 from data_pipeline.preprocessing.feature_engineering import FeatureEngineer
+from data_pipeline.preprocessing.ground_truth import GroundTruth
+
+_GT_REQUIRED_COLS = {"event_id", "event_label", "event_start_id", "event_end_id"}
 
 
 class DataSplitter:
@@ -35,6 +38,11 @@ class DataSplitter:
         self.event_info   = event_info
         self._loader      = EventLoader(farm_dir="", datasets_dir=datasets_dir)
         self._engineer    = FeatureEngineer()
+        self._gt = (
+            GroundTruth(event_info)
+            if _GT_REQUIRED_COLS.issubset(event_info.columns)
+            else None
+        )
 
     # ------------------------------------------------------------------
     # Global pipeline helpers
@@ -64,10 +72,14 @@ class DataSplitter:
 
             try:
                 df = self._loader.load_event_data(event_id)
-                df_train = df[df["train_test"] == "train"].copy()
+                # Keep only clean normal-production rows (status in NORMAL_STATUS).
+                # Service visits (3) and other states (5) would pollute the
+                # autoencoder's view of what normal sensor behaviour looks like.
+                df_all_train  = df[df["train_test"] == "train"]
+                df_train      = df_all_train[df_all_train["status_type_id"].isin(NORMAL_STATUS)].copy()
 
                 if len(df_train) == 0:
-                    print(f"  Event {event_id} ({event_label}): No train data")
+                    print(f"  Event {event_id} ({event_label}): No normal train data after status filter")
                     continue
 
                 if len(df_train) < WINDOW_SIZE + 1:
@@ -87,14 +99,15 @@ class DataSplitter:
                 features = self._engineer.preprocess_features(df_train, feature_cols)
                 all_train_data.append(features)
                 event_contributions[event_id] = {
-                    "label":             event_label,
-                    "original_train_len": len(df_train),
+                    "label":              event_label,
+                    "original_train_len": len(df_all_train),
                     "filtered_len":       len(df_train),
                     "features_shape":     features.shape,
                 }
                 print(
                     f"  Event {event_id} ({event_label:7s}): "
-                    f"{len(df_train):5d} timesteps"
+                    f"{len(df_train):5d} normal timesteps "
+                    f"(dropped {len(df_all_train) - len(df_train)} non-normal)"
                 )
 
             except Exception as e:
@@ -163,8 +176,14 @@ class DataSplitter:
                 df_pred  = self._engineer.drop_counter_features(df_pred)
                 features = self._engineer.preprocess_features(df_pred, feature_cols)
 
+                row_labels = (
+                    self._gt.make_labels(df_pred, event_id).values
+                    if self._gt is not None
+                    else np.zeros(len(df_pred), dtype=np.int8)
+                )
                 test_data[event_id] = {
                     "features":    features,
+                    "row_labels":  row_labels,
                     "label":       event_label,
                     "n_timesteps": len(df_pred),
                     "event_start": event["event_start"],
@@ -215,19 +234,22 @@ class DataSplitter:
     # ------------------------------------------------------------------
     # Per-csv helpers
     # ------------------------------------------------------------------
-    def split_train_val_autoencoder(self, df: pd.DataFrame):
+    def split_train_val_autoencoder(self, df: pd.DataFrame, val_ratio: float = 0.15):
         """
-        Split a single DataFrame into training and validation sets for autoencoder training.
-        
+        Filter to clean normal rows then do a temporal train/val split.
+
         Args:
-            df: DataFrame containing the data to split.
-            
+            df: Raw event DataFrame (all rows, all status values).
+            val_ratio: Fraction of normal rows reserved for validation.
+
         Returns:
-            Tuple of (train_df, val_df).
+            Tuple of (train_df, val_df) — both containing only normal
+            production rows from the train split, split temporally.
         """
-        train_df = df[(df['status_type_id'].isin(NORMAL_STATUS)) & (df['train_test'] == 'train')]
-        val_df = train_df.copy()
-        return train_df, val_df
+        normal = df[(df["status_type_id"].isin(NORMAL_STATUS)) & (df["train_test"] == "train")].copy()
+        n = len(normal)
+        split = n - int(n * val_ratio)
+        return normal.iloc[:split], normal.iloc[split:]
     # ------------------------------------------------------------------
     # Per-asset helpers
     # ------------------------------------------------------------------
@@ -285,10 +307,11 @@ class DataSplitter:
             event_label = ei.loc[event_id, "event_label"]
             try:
                 df = self._loader.load_event_data(event_id)
-                df_train = df[df["train_test"] == "train"].copy()
+                df_all_train = df[df["train_test"] == "train"]
+                df_train     = df_all_train[df_all_train["status_type_id"].isin(NORMAL_STATUS)].copy()
 
                 if len(df_train) == 0 or len(df_train) < WINDOW_SIZE + 1:
-                    print(f"    Event {event_id}: skipped (only {len(df_train)} rows)")
+                    print(f"    Event {event_id}: skipped (only {len(df_train)} normal rows)")
                     continue
 
                 df_train = self._engineer.engineer_angle_features(df_train)
@@ -300,8 +323,9 @@ class DataSplitter:
                 features = self._engineer.preprocess_features(df_train, feature_cols)
                 all_train_data.append(features)
                 contributions[event_id] = {
-                    "label":       event_label,
-                    "n_timesteps": len(df_train),
+                    "label":              event_label,
+                    "original_n_timesteps": len(df_all_train),
+                    "n_timesteps":        len(df_train),
                     "shape":       features.shape,
                 }
                 print(f"    Event {event_id} ({event_label:7s}): {len(df_train)} train timesteps")
@@ -353,8 +377,14 @@ class DataSplitter:
                 df_pred  = self._engineer.drop_counter_features(df_pred)
                 features = self._engineer.preprocess_features(df_pred, feature_cols)
 
+                row_labels = (
+                    self._gt.make_labels(df_pred, event_id).values
+                    if self._gt is not None
+                    else np.zeros(len(df_pred), dtype=np.int8)
+                )
                 test_data[event_id] = {
                     "features":    features,
+                    "row_labels":  row_labels,
                     "time_stamps": df_pred["time_stamp"].astype(str).tolist(),
                     "label":       event_label,
                     "n_timesteps": len(df_pred),

@@ -17,15 +17,23 @@ from typing import Iterable
 import pandas as pd
 
 from config import PROCESSED_DATA_DIR, RANDOM_SEED, RESULTS_DIR
-from training.sequence_model_utils import (
-    autoencoder_comparison_frame,
-    classifier_comparison_frame,
-    cleanup_tf,
-    compute_autoencoder_architecture_summary,
-    list_asset_dirs,
-    load_classifier_bundle,
+from training.sequence_experiments import (
     run_autoencoder_experiment,
     run_classifier_experiment,
+    run_global_autoencoder_experiment,
+)
+from training.sequence_io import (
+    empty_classifier_bundle,
+    list_asset_dirs,
+    load_classifier_bundle,
+)
+from training.sequence_metrics import (
+    autoencoder_comparison_frame,
+    classifier_comparison_frame,
+    compute_autoencoder_architecture_summary,
+)
+from training.sequence_utils import (
+    cleanup_tf,
     save_json,
     set_random_seed,
 )
@@ -70,6 +78,7 @@ class SequenceTrainingConfig:
     classifier_l2: float = 0.0
     autoencoder_epochs: int = 30
     autoencoder_batch_size: int = 128
+    autoencoder_scope: str = "per_asset"
 
     def __post_init__(self) -> None:
         self.exports_dir = _as_path(self.exports_dir)
@@ -80,6 +89,9 @@ class SequenceTrainingConfig:
         self.asset_filter = _as_int_list(self.asset_filter)
         self.classifier_learning_rate = float(self.classifier_learning_rate)
         self.classifier_l2 = float(self.classifier_l2)
+        valid_scopes = {"per_asset", "global", "both"}
+        if self.autoencoder_scope not in valid_scopes:
+            raise ValueError(f"autoencoder_scope must be one of {sorted(valid_scopes)}")
 
 
 class SequenceModelTrainer:
@@ -107,7 +119,18 @@ class SequenceModelTrainer:
         classifier_results_dir = results_window_dir / "classifier"
         classifier_results_dir.mkdir(parents=True, exist_ok=True)
 
-        classifier_bundle = load_classifier_bundle(classifier_export_dir)
+        need_classifier_bundle = bool(cfg.classifier_models) or cfg.autoencoder_models
+        if classifier_export_dir.exists():
+            classifier_bundle = load_classifier_bundle(classifier_export_dir)
+        elif need_classifier_bundle:
+            print(
+                f"[INFO] No classifier export at {classifier_export_dir}. "
+                "Autoencoder threshold will use 99th-percentile fallback."
+            )
+            classifier_bundle = empty_classifier_bundle()
+        else:
+            classifier_bundle = empty_classifier_bundle()
+
         classifier_rows = []
         classifier_payload = []
 
@@ -140,21 +163,62 @@ class SequenceModelTrainer:
         asset_dirs = list_asset_dirs(autoencoder_export_dir, cfg.asset_filter)
         autoencoder_rows = []
         autoencoder_payload = []
+        run_per_asset_autoencoders = cfg.autoencoder_scope in {"per_asset", "both"}
+        run_global_autoencoders = cfg.autoencoder_scope in {"global", "both"}
 
-        if cfg.autoencoder_models and not asset_dirs:
+        if cfg.autoencoder_models and run_per_asset_autoencoders and not asset_dirs:
             print("[SKIP] No autoencoder asset folders matched the current asset filter.")
 
         for model_name in cfg.autoencoder_models:
-            print(f"\n[Autoencoder] Training {model_name}")
-            asset_results = []
+            if run_per_asset_autoencoders:
+                print(f"\n[Autoencoder] Training {model_name} per asset")
+                asset_results = []
 
-            for asset_dir in asset_dirs:
-                asset_id = int(asset_dir.name.replace("asset_", ""))
-                print(f"  - Asset {asset_id}")
-                model_output_dir = autoencoder_results_dir / asset_dir.name / model_name
-                result = run_autoencoder_experiment(
+                for asset_dir in asset_dirs:
+                    asset_id = int(asset_dir.name.replace("asset_", ""))
+                    print(f"  - Asset {asset_id}")
+                    model_output_dir = autoencoder_results_dir / asset_dir.name / model_name
+                    result = run_autoencoder_experiment(
+                        model_name=model_name,
+                        asset_dir=asset_dir,
+                        classifier_bundle=classifier_bundle,
+                        output_dir=model_output_dir,
+                        random_seed=cfg.random_seed,
+                        epochs=cfg.autoencoder_epochs,
+                        batch_size=cfg.autoencoder_batch_size,
+                        overwrite=cfg.overwrite,
+                        save_predictions=cfg.save_predictions,
+                    )
+                    asset_results.append(result)
+
+                if asset_results:
+                    asset_summary_df = (
+                        pd.DataFrame([item["summary"] for item in asset_results])
+                        .sort_values("asset_id", kind="mergesort")
+                    )
+                    asset_summary_df.to_csv(
+                        autoencoder_results_dir / f"{model_name}_asset_summary.csv",
+                        index=False,
+                    )
+
+                    architecture_summary = compute_autoencoder_architecture_summary(
+                        model_name,
+                        asset_results,
+                    )
+                    payload = {
+                        "architecture_summary": architecture_summary,
+                        "asset_summaries": asset_summary_df.to_dict(orient="records"),
+                    }
+                    autoencoder_rows.append(architecture_summary)
+                    autoencoder_payload.append(payload)
+                    save_json(autoencoder_results_dir / f"{model_name}_summary.json", payload)
+
+            if run_global_autoencoders:
+                print(f"\n[Autoencoder] Training {model_name} global pooled")
+                model_output_dir = autoencoder_results_dir / "global" / model_name
+                result = run_global_autoencoder_experiment(
                     model_name=model_name,
-                    asset_dir=asset_dir,
+                    autoencoder_root=autoencoder_export_dir,
                     classifier_bundle=classifier_bundle,
                     output_dir=model_output_dir,
                     random_seed=cfg.random_seed,
@@ -162,32 +226,14 @@ class SequenceModelTrainer:
                     batch_size=cfg.autoencoder_batch_size,
                     overwrite=cfg.overwrite,
                     save_predictions=cfg.save_predictions,
+                    asset_filter=cfg.asset_filter,
                 )
-                asset_results.append(result)
-
-            if not asset_results:
-                continue
-
-            asset_summary_df = (
-                pd.DataFrame([item["summary"] for item in asset_results])
-                .sort_values("asset_id", kind="mergesort")
-            )
-            asset_summary_df.to_csv(
-                autoencoder_results_dir / f"{model_name}_asset_summary.csv",
-                index=False,
-            )
-
-            architecture_summary = compute_autoencoder_architecture_summary(
-                model_name,
-                asset_results,
-            )
-            payload = {
-                "architecture_summary": architecture_summary,
-                "asset_summaries": asset_summary_df.to_dict(orient="records"),
-            }
-            autoencoder_rows.append(architecture_summary)
-            autoencoder_payload.append(payload)
-            save_json(autoencoder_results_dir / f"{model_name}_summary.json", payload)
+                autoencoder_rows.append(result["summary"])
+                autoencoder_payload.append(result["metrics"])
+                save_json(
+                    autoencoder_results_dir / f"{model_name}_global_summary.json",
+                    result["metrics"],
+                )
 
         autoencoder_comparison = autoencoder_comparison_frame(autoencoder_rows)
         autoencoder_comparison.to_csv(autoencoder_results_dir / "model_comparison.csv", index=False)
@@ -235,6 +281,7 @@ class SequenceModelTrainer:
         print(f"Classifier drop: {cfg.classifier_dropout}")
         print(f"Classifier L2  : {cfg.classifier_l2}")
         print(f"Autoencoder set: {cfg.autoencoder_models}")
+        print(f"Autoenc. scope : {cfg.autoencoder_scope}")
         print(f"Asset filter   : {cfg.asset_filter}")
 
         run_summary = {

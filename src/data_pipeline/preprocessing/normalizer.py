@@ -81,15 +81,29 @@ class AssetNormalizer:
                 continue
             X_test_sc = scaler.transform(X_test.reshape(-1, n_features)).reshape(-1, self.seq_len, n_features)
             y_test_sc = scaler.transform(y_test)
-            
+
             seq_ts = []
             if "time_stamps" in data:
                 ts = data["time_stamps"]
                 stride = seq_maker.stride
                 seq_ts = [ts[i * stride + self.seq_len] for i in range(len(X_test))]
-                
+
+            # Label each window by its last timestep: window i is a fault window
+            # if and only if the last row it covers (i*stride + seq_len - 1) is
+            # labeled as a fault row. This mirrors the causal interpretation —
+            # the window predicts the state at the moment it ends.
+            n_seqs = len(X_test)
+            stride = seq_maker.stride
+            if "row_labels" in data:
+                row_labels = np.asarray(data["row_labels"])
+                last_row_indices = np.arange(n_seqs) * stride + self.seq_len - 1
+                seq_labels = row_labels[last_row_indices].astype(np.int8)
+            else:
+                seq_labels = np.zeros(n_seqs, dtype=np.int8)
+
             test_data_scaled[event_id] = {
                 "X": X_test_sc, "y": y_test_sc,
+                "seq_labels":  seq_labels,
                 "time_stamps": seq_ts,
                 "label":      data["label"],
                 "event_start": data["event_start"],
@@ -100,6 +114,8 @@ class AssetNormalizer:
         os.makedirs(self.output_dir, exist_ok=True)
         scaler_path = os.path.join(self.output_dir, f"scaler_asset_{asset_id}.pkl")
         joblib.dump(scaler, scaler_path)
+        # Also save as scaler.pkl so the training loader can find it
+        joblib.dump(scaler, os.path.join(self.output_dir, "scaler.pkl"))
         print(f"  Asset {asset_id}: scaler saved → {scaler_path}")
 
         return X_train_sc, X_val_sc, y_train_sc, y_val_sc, test_data_scaled

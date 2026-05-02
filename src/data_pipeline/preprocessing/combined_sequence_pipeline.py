@@ -246,6 +246,15 @@ class CombinedSequencePipeline:
             )
             prepared["label"] = (prepared["label"] > 0).astype(np.int8)
         else:
+            import warnings
+            warnings.warn(
+                "No 'label' column found in combined CSV — falling back to "
+                "status_type_id-based labeling. This is unreliable for the original "
+                "CARE data where faults show status=0 (normal). Add labels via "
+                "GroundTruth.add_label_column() before running this pipeline.",
+                UserWarning,
+                stacklevel=2,
+            )
             prepared["label"] = (~prepared["status_type_id"].isin(self.normal_statuses)).astype(np.int8)
 
         return prepared.sort_values(
@@ -803,6 +812,99 @@ class CombinedSequencePipeline:
         normal_val_df = self.extract_contiguous_normal_runs(val_df)
         summary = {}
 
+        X_train_global, y_train_global, train_meta_global = self.build_windows(
+            normal_train_df,
+            feature_cols,
+            window_steps,
+            group_cols=("asset_id", "run_key"),
+            split_name="train_normal_global",
+        )
+        X_val_global, y_val_global, val_meta_global = self.build_windows(
+            normal_val_df,
+            feature_cols,
+            window_steps,
+            group_cols=("asset_id", "run_key"),
+            split_name="val_normal_global",
+        )
+
+        if len(y_train_global) and int(y_train_global.max()) != 0:
+            raise ValueError("Global autoencoder train windows contain anomalous labels.")
+        if len(y_val_global) and int(y_val_global.max()) != 0:
+            raise ValueError("Global autoencoder val windows contain anomalous labels.")
+
+        global_dir = autoencoder_dir / "global"
+        global_dir.mkdir(parents=True, exist_ok=True)
+        np.save(global_dir / "X_train.npy", X_train_global)
+        np.save(global_dir / "X_val.npy", X_val_global)
+        train_meta_global.to_csv(global_dir / "train_meta.csv", index=False)
+        val_meta_global.to_csv(global_dir / "val_meta.csv", index=False)
+
+        import joblib
+        joblib.dump(scalers, global_dir / "scalers.pkl")
+
+        global_test_dir = global_dir / "test_by_sequence"
+        global_test_dir.mkdir(parents=True, exist_ok=True)
+
+        saved_global_test_sequences = 0
+        for (asset_id, sequence_id), sequence_rows in test_df.groupby(
+            ["asset_id", "sequence_id"],
+            sort=False,
+        ):
+            X_seq, y_seq, meta_seq = self.build_windows(
+                sequence_rows,
+                feature_cols,
+                window_steps,
+                group_cols=("asset_id", "sequence_id"),
+                split_name="test",
+            )
+            if len(X_seq) == 0:
+                continue
+
+            asset_test_dir = global_test_dir / f"asset_{asset_id}"
+            asset_test_dir.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(
+                asset_test_dir / f"sequence_{sequence_id}.npz",
+                X=X_seq,
+                y=y_seq,
+                end_time=meta_seq["end_time"].to_numpy(),
+                horizon_start_time=meta_seq["horizon_start_time"].to_numpy(),
+                horizon_end_time=meta_seq["horizon_end_time"].to_numpy(),
+                first_future_anomaly_time=meta_seq["first_future_anomaly_time"].to_numpy(),
+                target_label=meta_seq["target_label"].to_numpy(dtype=np.int8),
+                last_label=meta_seq["target_label"].to_numpy(dtype=np.int8),
+                asset_id=np.asarray([asset_id] * len(X_seq)),
+                sequence_id=np.asarray([sequence_id] * len(X_seq)),
+            )
+            saved_global_test_sequences += 1
+
+        global_assets = sorted({str(asset_id) for asset_id in scalers.keys()})
+        save_metadata(
+            global_dir / "metadata.json",
+            {
+                "scope": "global",
+                "asset_ids": global_assets,
+                "asset_count": int(len(global_assets)),
+                "source_csv": str(self.csv_path),
+                "window_hours": int(window_hours),
+                "window_steps": int(window_steps),
+                "stride_steps": int(self.stride_steps),
+                "prediction_horizon_steps": int(self.prediction_horizon_steps),
+                "label_definition": "future_horizon_any_positive_after_input_window",
+                "validation_source": self.validation_source,
+                "prediction_val_ratio": self.prediction_val_ratio,
+                "scaler_type": self.scaler_type,
+                "feature_cols": feature_cols,
+                "train_shape": list(X_train_global.shape),
+                "val_shape": list(X_val_global.shape),
+                "saved_test_sequences": int(saved_global_test_sequences),
+            },
+        )
+        summary["global"] = {
+            "train_windows": int(len(X_train_global)),
+            "val_windows": int(len(X_val_global)),
+            "test_sequences": int(saved_global_test_sequences),
+        }
+
         for asset_id in scalers.keys():
             asset_dir = autoencoder_dir / f"asset_{asset_id}"
             asset_dir.mkdir(parents=True, exist_ok=True)
@@ -833,7 +935,6 @@ class CombinedSequencePipeline:
 
             np.save(asset_dir / "X_train.npy", X_train)
             np.save(asset_dir / "X_val.npy", X_val)
-            import joblib
             joblib.dump(scalers[asset_id], asset_dir / "scaler.pkl")
 
             test_by_sequence_dir = asset_dir / "test_by_sequence"

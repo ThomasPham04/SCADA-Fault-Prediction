@@ -16,6 +16,10 @@ __all__ = [
     "temporal_split_train_val",
     "normalize_data",
     "normalize_asset",
+    "GroundTruth",
+    "make_labels",
+    "make_normal_index",
+    "add_label_column",
 ]
 
 _EXPORTS = {
@@ -30,6 +34,10 @@ _EXPORTS = {
     "temporal_split_train_val": ("data_pipeline.preprocessing.splitter", "temporal_split_train_val"),
     "normalize_data": ("data_pipeline.preprocessing.normalizer", "normalize_data"),
     "normalize_asset": ("data_pipeline.preprocessing.normalizer", "normalize_asset"),
+    "GroundTruth":       ("data_pipeline.preprocessing.ground_truth", "GroundTruth"),
+    "make_labels":       ("data_pipeline.preprocessing.ground_truth", "make_labels"),
+    "make_normal_index": ("data_pipeline.preprocessing.ground_truth", "make_normal_index"),
+    "add_label_column":  ("data_pipeline.preprocessing.ground_truth", "add_label_column"),
 }
 
 
