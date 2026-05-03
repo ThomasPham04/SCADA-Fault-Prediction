@@ -127,28 +127,33 @@ def build_classifier_model(
     return model
 
 
-def build_autoencoder_model(model_name: str, input_shape: tuple):
+def build_autoencoder_model(
+    model_name: str,
+    input_shape: tuple,
+    encoder_units: int = 96,
+    bottleneck_units: int = 48,
+):
     time_steps, feature_count = input_shape
     inputs = layers.Input(shape=input_shape, name="input_sequence")
 
     if model_name == "lstm_ae":
-        x = layers.LSTM(96, return_sequences=True)(inputs)
+        x = layers.LSTM(encoder_units, return_sequences=True)(inputs)
         x = layers.Dropout(0.20)(x)
-        x = layers.LSTM(48, return_sequences=False)(x)
+        x = layers.LSTM(bottleneck_units, return_sequences=False)(x)
         x = layers.RepeatVector(time_steps)(x)
-        x = layers.LSTM(48, return_sequences=True)(x)
+        x = layers.LSTM(bottleneck_units, return_sequences=True)(x)
         x = layers.Dropout(0.20)(x)
-        x = layers.LSTM(96, return_sequences=True)(x)
+        x = layers.LSTM(encoder_units, return_sequences=True)(x)
     elif model_name == "gru_ae":
-        x = layers.GRU(96, return_sequences=True)(inputs)
+        x = layers.GRU(encoder_units, return_sequences=True)(inputs)
         x = layers.Dropout(0.20)(x)
-        x = layers.GRU(48, return_sequences=False)(x)
+        x = layers.GRU(bottleneck_units, return_sequences=False)(x)
         x = layers.RepeatVector(time_steps)(x)
-        x = layers.GRU(48, return_sequences=True)(x)
+        x = layers.GRU(bottleneck_units, return_sequences=True)(x)
         x = layers.Dropout(0.20)(x)
-        x = layers.GRU(96, return_sequences=True)(x)
+        x = layers.GRU(encoder_units, return_sequences=True)(x)
     else:
-        raise ValueError(f"Unsupported autoencoder model: {model_name}")
+        raise ValueError(f"Unsupported autoencoder model: {model_name!r}")
 
     outputs = layers.TimeDistributed(layers.Dense(feature_count))(x)
     model = models.Model(inputs=inputs, outputs=outputs, name=model_name)

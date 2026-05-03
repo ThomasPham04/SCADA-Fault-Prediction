@@ -3,8 +3,13 @@ Run Feature Screening - training.scripts.run_feature_screening
 Entry-point script for cross-dataset feature screening on SCADA CSV files.
 
 Usage:
-    python -m src.training.scripts.run_feature_screening
-    python -m src.training.scripts.run_feature_screening --dataset-dir "path\\to\\datasets"
+    # Split a combined CSV by sequence_id and screen across all events:
+    python -m src.training.scripts.run_feature_screening \
+        --combined-csv "Dataset/processed/combined_dataset.csv"
+
+    # Screen pre-existing per-event CSV files directly:
+    python -m src.training.scripts.run_feature_screening \
+        --dataset-dir "path/to/per_event_splits"
 """
 
 from __future__ import annotations
@@ -12,12 +17,15 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from config import RESULTS_DIR, WIND_FARM_A_DATASETS
+import pandas as pd
+
+from config import PROCESSED_DATA_DIR, RESULTS_DIR, WIND_FARM_A_DATASETS
 from data_pipeline.preprocessing.feature_screening import FeatureScreening
 
 
@@ -31,34 +39,104 @@ DROP_COLUMNS = {
 }
 
 
+def split_combined_csv(combined_csv: str | Path, splits_dir: str | Path) -> Path:
+    """
+    Split a combined CSV into one file per sequence_id.
+
+    Each output file is named event_<sequence_id>.csv and contains all rows
+    for that event, including the label column.
+
+    Returns:
+        Path to the splits directory.
+    """
+    splits_dir = Path(splits_dir)
+    splits_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Loading combined CSV: {combined_csv}")
+    df = pd.read_csv(combined_csv)
+    n_events = df["sequence_id"].nunique()
+    print(f"  {len(df):,} rows  |  {n_events} events (sequence_ids)  |  splitting...")
+
+    for seq_id, group in df.groupby("sequence_id"):
+        out_path = splits_dir / f"event_{seq_id}.csv"
+        group.to_csv(out_path, index=False)
+
+    print(f"  Saved {n_events} event CSV files to: {splits_dir}")
+    return splits_dir
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run feature screening using point-biserial and Spearman aggregation.",
+        description=(
+            "Run feature screening using point-biserial and Spearman aggregation "
+            "across multiple per-event CSV files."
+        ),
     )
-    parser.add_argument("--dataset-dir", type=str, default=WIND_FARM_A_DATASETS)
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
+        "--combined-csv",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a combined CSV with a sequence_id column. "
+            "Will be split into per-event files before screening."
+        ),
+    )
+    source.add_argument(
+        "--dataset-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help="Directory of pre-split per-event CSV files.",
+    )
+    parser.add_argument(
+        "--splits-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help=(
+            "Where to save per-event splits when --combined-csv is used. "
+            "Defaults to Dataset/processed/per_event_splits/."
+        ),
+    )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=os.path.join(RESULTS_DIR, "feature_screening"),
+        default=None,
+        metavar="DIR",
+        help="Output directory for screening results.",
     )
-    parser.add_argument("--sep", type=str, default=";")
+    parser.add_argument("--sep", type=str, default=",")
     parser.add_argument("--target-col", type=str, default="label")
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--min-mean-abs-pb-r", type=float, default=0.05)
     parser.add_argument("--min-pb-sign-consistency", type=float, default=0.60)
     parser.add_argument("--min-pb-sig-ratio", type=float, default=0.30)
     parser.add_argument("--ff-threshold", type=float, default=0.85)
-    parser.add_argument("--sample-per-file", type=int, default=10000)
+    parser.add_argument("--sample-per-file", type=int, default=10_000)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
 
+    if args.combined_csv:
+        splits_dir = Path(
+            args.splits_dir or os.path.join(PROCESSED_DATA_DIR, "per_event_splits")
+        )
+        dataset_dir = split_combined_csv(args.combined_csv, splits_dir)
+        sep = ","
+    else:
+        dataset_dir = args.dataset_dir or WIND_FARM_A_DATASETS
+        sep = args.sep
+
+    output_dir = args.output_dir or os.path.join(RESULTS_DIR, "feature_screening_per_event")
+
     screening = FeatureScreening(
-        dataset_dir=args.dataset_dir,
-        output_dir=args.output_dir,
-        csv_sep=args.sep,
+        dataset_dir=dataset_dir,
+        output_dir=output_dir,
+        csv_sep=sep,
         target_col=args.target_col,
         drop_columns=DROP_COLUMNS,
         alpha=args.alpha,
@@ -73,9 +151,10 @@ def main() -> None:
     print("=" * 70)
     print("Feature Screening Complete")
     print("=" * 70)
-    print(f"Selected features: {len(results['selected'])}")
-    print(f"Final features after redundancy removal: {len(results['final_features'])}")
-    print(f"Output directory: {args.output_dir}")
+    print(f"Events processed      : {len(results['per_dataset_results'])}")
+    print(f"Selected features     : {len(results['selected'])}")
+    print(f"Final (after redund.) : {len(results['final_features'])}")
+    print(f"Output directory      : {output_dir}")
 
 
 if __name__ == "__main__":

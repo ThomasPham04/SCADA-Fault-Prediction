@@ -94,12 +94,22 @@ Key source files:
 
 ## Setup
 
-Create a virtual environment, then install dependencies:
+**Linux / macOS**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+**Windows (PowerShell)**
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
 The project requires Python 3.10 or newer. TensorFlow is required for training.
@@ -131,22 +141,27 @@ results/results/final_features.csv
 
 ## CLI Reference
 
+> **Note on line continuation:** examples below use `\` (bash/Linux/macOS).
+> On Windows PowerShell replace each trailing `\` with a backtick `` ` ``.
+
+---
+
 ### `prepare-care` — raw CARE files → combined CSV → sequence exports
 
 Reads raw CARE per-event CSVs and `event_info.csv` for a wind farm, builds a
 combined CSV, then prepares all sequence exports in one step.
 
-```powershell
+```bash
 python src/main.py prepare-care
 ```
 
 Use a custom farm directory or output path:
 
-```powershell
-python src/main.py prepare-care `
-    --farm-dir "Dataset\raw\Wind Farm A" `
-    --combined-csv-output "Dataset\processed\Wind Farm A\combined.csv" `
-    --feature-file "results\final_features.csv" `
+```bash
+python src/main.py prepare-care \
+    --farm-dir "/path/to/Wind Farm A" \
+    --combined-csv-output "Dataset/processed/combined.csv" \
+    --feature-file "results/final_features.csv" \
     --window-hours 24
 ```
 
@@ -174,22 +189,23 @@ Key options:
 
 Use this when you already have a combined CSV.
 
-```powershell
-python src/main.py prepare --csv "Dataset\processed\combined.csv" `
-    --feature-file "results\final_features.csv" `
+```bash
+python src/main.py prepare \
+    --csv "Dataset/processed/combined.csv" \
+    --feature-file "results/final_features.csv" \
     --window-hours 24
 ```
 
 With a prediction-source validation split (recommended for threshold selection):
 
-```powershell
-python src/main.py prepare `
-    --csv "Dataset\processed\combined.csv" `
-    --feature-file "results\final_features.csv" `
-    --window-hours 24 `
-    --validation-source prediction `
-    --prediction-val-ratio 0.5 `
-    --sequence-output-dir "Dataset\processed\sequence_exports_prediction_val"
+```bash
+python src/main.py prepare \
+    --csv "Dataset/processed/combined.csv" \
+    --feature-file "results/final_features.csv" \
+    --window-hours 24 \
+    --validation-source prediction \
+    --prediction-val-ratio 0.5 \
+    --sequence-output-dir "Dataset/processed/sequence_exports_prediction_val"
 ```
 
 Accepts the same `--window-hours`, `--combined-scaler`, `--validation-source`,
@@ -223,13 +239,13 @@ Dataset/processed/sequence_exports/
 
 ### `train-sequences` — sequence exports → trained models
 
-```powershell
+```bash
 python src/main.py train-sequences --windows 24
 ```
 
 Train only specific models (auto-routes to classifier or autoencoder branch):
 
-```powershell
+```bash
 python src/main.py train-sequences --windows 24 --model lstm gru
 python src/main.py train-sequences --windows 24 --model lstm_ae gru_ae
 python src/main.py train-sequences --windows 24 --model lstm gru_ae
@@ -237,7 +253,7 @@ python src/main.py train-sequences --windows 24 --model lstm gru_ae
 
 Skip one branch entirely:
 
-```powershell
+```bash
 python src/main.py train-sequences --windows 24 --skip-autoencoders
 python src/main.py train-sequences --windows 24 --skip-classifiers
 ```
@@ -299,9 +315,11 @@ results/sequence_training_results/
 
 ## Typical Workflow
 
-```powershell
+```bash
 # Step 1 — build combined CSV from raw CARE files and prepare exports
-python src/main.py prepare-care --window-hours 24
+python src/main.py prepare-care \
+    --farm-dir "/path/to/Wind Farm A" \
+    --window-hours 24
 
 # Step 2 — train autoencoders only (fast first pass)
 python src/main.py train-sequences --windows 24 --skip-classifiers
@@ -310,10 +328,13 @@ python src/main.py train-sequences --windows 24 --skip-classifiers
 python src/main.py train-sequences --windows 24 --skip-autoencoders
 ```
 
-Or in two commands when you already have a combined CSV:
+When you already have a combined CSV:
 
-```powershell
-python src/main.py prepare --csv "Dataset\processed\combined.csv" --window-hours 24
+```bash
+python src/main.py prepare \
+    --csv "Dataset/processed/combined.csv" \
+    --window-hours 24
+
 python src/main.py train-sequences --windows 24
 ```
 

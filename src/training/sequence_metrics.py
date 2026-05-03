@@ -81,16 +81,18 @@ def get_label_column(meta_df: pd.DataFrame) -> str:
 
 
 def sweep_thresholds(y_true: np.ndarray, y_score: np.ndarray, thresholds) -> pd.DataFrame:
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score, dtype=float)
     rows = []
     for threshold in thresholds:
-        metrics = evaluate_at_threshold(y_true, y_score, float(threshold))
+        y_pred = (y_score >= float(threshold)).astype(int)
         rows.append(
             {
                 "threshold": float(threshold),
-                "precision": metrics["precision"],
-                "recall": metrics["recall"],
-                "f1": metrics["f1"],
-                "accuracy": metrics["accuracy"],
+                "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+                "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+                "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+                "accuracy": float((y_pred == y_true).mean()) if len(y_true) else 0.0,
             }
         )
     if not rows:

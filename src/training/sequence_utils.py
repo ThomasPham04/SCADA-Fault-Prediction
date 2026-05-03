@@ -7,6 +7,7 @@ history formatting, and reconstruction scoring.
 from __future__ import annotations
 
 import gc
+import io
 import json
 import os
 from pathlib import Path
@@ -73,6 +74,12 @@ def load_best_model(model_path: Path):
     if model_path.exists():
         return tf.keras.models.load_model(model_path, compile=False)
     raise FileNotFoundError(f"Saved model not found: {model_path}")
+
+
+def save_model_summary(model, path: Path) -> None:
+    buf = io.StringIO()
+    model.summary(print_fn=lambda line: buf.write(line + "\n"))
+    Path(path).write_text(buf.getvalue(), encoding="utf-8")
 
 
 def reconstruction_scores(model, X, batch_size: int) -> np.ndarray:

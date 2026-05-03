@@ -64,6 +64,9 @@ src/preprocessing_data/tf_env_312/
 # Project-specific Ignored Directories
 # ==============================================================================
 src/analysis/
+!src/analysis/
+src/analysis/*
+!src/analysis/combined_csv_eda.py
 # src/utils/
 ref_project/
 

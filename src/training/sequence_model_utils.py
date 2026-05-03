@@ -66,6 +66,7 @@ from training.sequence_utils import (
     load_json,
     reconstruction_scores,
     save_json,
+    save_model_summary,
     set_random_seed,
     to_int_list,
 )
@@ -79,10 +80,10 @@ __all__ = [
     "load_json",
     "reconstruction_scores",
     "save_json",
+    "save_model_summary",
     "set_random_seed",
     "to_int_list",
     # sequence_io
-    "_filter_array_by_asset_meta",
     "empty_classifier_bundle",
     "list_asset_dirs",
     "load_asset_val_classifier_slice",

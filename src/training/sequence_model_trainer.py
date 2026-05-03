@@ -12,7 +12,6 @@ from __future__ import annotations
 import gc
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -36,6 +35,7 @@ from training.sequence_utils import (
     cleanup_tf,
     save_json,
     set_random_seed,
+    to_int_list,
 )
 
 
@@ -46,12 +46,6 @@ DEFAULT_AUTOENCODER_MODELS = ["lstm_ae", "gru_ae"]
 
 def _as_path(path: str | Path) -> Path:
     return path if isinstance(path, Path) else Path(path)
-
-
-def _as_int_list(values: Iterable[int] | None) -> list[int] | None:
-    if values is None:
-        return None
-    return [int(value) for value in values]
 
 
 @dataclass
@@ -86,7 +80,7 @@ class SequenceTrainingConfig:
         self.windows = [int(window) for window in self.windows]
         self.classifier_models = [str(model) for model in self.classifier_models]
         self.autoencoder_models = [str(model) for model in self.autoencoder_models]
-        self.asset_filter = _as_int_list(self.asset_filter)
+        self.asset_filter = to_int_list(self.asset_filter)
         self.classifier_learning_rate = float(self.classifier_learning_rate)
         self.classifier_l2 = float(self.classifier_l2)
         valid_scopes = {"per_asset", "global", "both"}

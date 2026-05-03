@@ -13,7 +13,9 @@ from tqdm import tqdm
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 from config import WINDOW_SIZE, NORMAL_STATUS
 from data_pipeline.loaders.event_loader import EventLoader
 from data_pipeline.preprocessing.feature_engineering import FeatureEngineer
@@ -43,6 +45,7 @@ class DataSplitter:
             if _GT_REQUIRED_COLS.issubset(event_info.columns)
             else None
         )
+        self._ei = event_info.set_index("event_id") if not event_info.empty else event_info
 
     # ------------------------------------------------------------------
     # Global pipeline helpers
@@ -231,9 +234,11 @@ class DataSplitter:
         print(f"  Val:   {len(val_split)} timesteps ({len(val_split) / n_total * 100:.1f}%)")
 
         return train_split, val_split
+
     # ------------------------------------------------------------------
     # Per-csv helpers
     # ------------------------------------------------------------------
+
     def split_train_val_autoencoder(self, df: pd.DataFrame, val_ratio: float = 0.15):
         """
         Filter to clean normal rows then do a temporal train/val split.
@@ -250,10 +255,11 @@ class DataSplitter:
         n = len(normal)
         split = n - int(n * val_ratio)
         return normal.iloc[:split], normal.iloc[split:]
+
     # ------------------------------------------------------------------
     # Per-asset helpers
     # ------------------------------------------------------------------
-    
+
     def group_events_by_asset(self) -> dict:
         """
         Group event IDs by their asset (turbine) ID.
@@ -272,8 +278,8 @@ class DataSplitter:
         print(f"\nFound {len(asset_ids)} assets: {asset_ids}")
         for aid in asset_ids:
             events  = grouped[aid]
-            labels  = ei.set_index("event_id").loc[events, "event_label"].tolist()
-            n_anom  = sum(1 for l in labels if l == "anomaly")
+            labels  = self._ei.loc[events, "event_label"].tolist()
+            n_anom  = labels.count("anomaly")
             print(
                 f"  Asset {aid}: {len(events)} events "
                 f"({n_anom} anomaly, {len(events) - n_anom} normal)"
@@ -300,11 +306,10 @@ class DataSplitter:
         all_train_data = []
         feature_cols   = None
         contributions  = {}
-        ei = self.event_info.set_index("event_id")
 
         print(f"\n  Asset {asset_id} — processing {len(event_ids)} events for TRAIN")
         for event_id in event_ids:
-            event_label = ei.loc[event_id, "event_label"]
+            event_label = self._ei.loc[event_id, "event_label"]
             try:
                 df = self._loader.load_event_data(event_id)
                 df_all_train = df[df["train_test"] == "train"]
@@ -360,11 +365,10 @@ class DataSplitter:
                                 'event_start', 'event_end', 'asset_id'}}.
         """
         test_data = {}
-        ei = self.event_info.set_index("event_id")
 
         print(f"\n  Asset {asset_id} — processing {len(event_ids)} events for TEST")
         for event_id in event_ids:
-            event_label = ei.loc[event_id, "event_label"]
+            event_label = self._ei.loc[event_id, "event_label"]
             try:
                 df = self._loader.load_event_data(event_id)
                 df_pred = df[df["train_test"] == "prediction"].copy()
@@ -388,8 +392,8 @@ class DataSplitter:
                     "time_stamps": df_pred["time_stamp"].astype(str).tolist(),
                     "label":       event_label,
                     "n_timesteps": len(df_pred),
-                    "event_start": ei.loc[event_id, "event_start"],
-                    "event_end":   ei.loc[event_id, "event_end"],
+                    "event_start": self._ei.loc[event_id, "event_start"],
+                    "event_end":   self._ei.loc[event_id, "event_end"],
                     "asset_id":    asset_id,
                 }
                 print(f"    Event {event_id} ({event_label:7s}): {len(df_pred)} test timesteps")

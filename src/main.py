@@ -352,6 +352,100 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def run_eda(args: argparse.Namespace) -> None:
+    """Run exploratory data analysis on a combined CSV."""
+    from pathlib import Path
+    from config import RESULTS_DIR
+    from data_pipeline.eda import EDAReport
+
+    csv_path = Path(args.csv)
+    if not csv_path.exists():
+        raise SystemExit(f"CSV not found: {csv_path}")
+
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        farm_name = csv_path.parent.name or "default"
+        output_dir = Path(RESULTS_DIR) / "eda" / farm_name
+
+    EDAReport(
+        csv_path=csv_path,
+        output_dir=output_dir,
+        feature_file=args.feature_file,
+        max_features=args.max_features,
+        sample_asset=args.sample_asset,
+        select_features=args.select_features,
+        min_corr=args.min_corr,
+        max_missing_pct=args.max_missing_pct,
+        redundancy_threshold=args.redundancy_threshold,
+    ).run()
+
+
+def add_eda_flags(parser: argparse.ArgumentParser) -> None:
+    """Flags for the `eda` subcommand."""
+    parser.add_argument(
+        "--csv",
+        type=str,
+        required=True,
+        metavar="PATH",
+        help="Path to the combined CSV.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help="Where to write EDA artifacts. Defaults to results/eda/<farm-name>/.",
+    )
+    parser.add_argument(
+        "--feature-file",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Optional CSV with a 'final_feature' column to restrict analysis to a subset.",
+    )
+    parser.add_argument(
+        "--max-features",
+        type=int,
+        default=30,
+        metavar="N",
+        help="Cap on features shown in correlation heatmap and distribution boxplots.",
+    )
+    parser.add_argument(
+        "--sample-asset",
+        type=int,
+        default=None,
+        metavar="ID",
+        help="Asset to use for the time-series overview plot. Defaults to first asset in the CSV.",
+    )
+    parser.add_argument(
+        "--select-features",
+        action="store_true",
+        help="Run EDA-based feature selection after analysis.",
+    )
+    parser.add_argument(
+        "--min-corr",
+        type=float,
+        default=0.02,
+        metavar="F",
+        help="Minimum |Spearman ρ| with label to keep a feature (default 0.02).",
+    )
+    parser.add_argument(
+        "--max-missing-pct",
+        type=float,
+        default=80.0,
+        metavar="F",
+        help="Drop features with missing %% above this (default 80).",
+    )
+    parser.add_argument(
+        "--redundancy-threshold",
+        type=float,
+        default=0.90,
+        metavar="F",
+        help="Inter-feature |Spearman ρ| above which the weaker feature is dropped (default 0.90).",
+    )
+
+
 def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
     """Flags for prepare-care: raw CARE data → combined CSV → sequence exports."""
     parser.add_argument(
@@ -427,6 +521,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_sequence_training_flags(train_sequences_parser)
 
+    eda_parser = subparsers.add_parser(
+        "eda",
+        help="Run exploratory data analysis on a combined CSV.",
+    )
+    add_eda_flags(eda_parser)
+
     return parser
 
 
@@ -440,6 +540,8 @@ def main() -> None:
         run_prepare(args)
     elif args.command == "train-sequences":
         run_train_sequences(args)
+    elif args.command == "eda":
+        run_eda(args)
 
 
 if __name__ == "__main__":

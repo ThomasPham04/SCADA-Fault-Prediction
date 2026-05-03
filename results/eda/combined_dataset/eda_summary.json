@@ -1,0 +1,153 @@
+{
+  "csv_path": "Dataset\\processed\\combined_dataset.csv",
+  "output_dir": "results\\eda\\combined_dataset",
+  "n_rows": 1196747,
+  "n_features": 89,
+  "n_assets": 5,
+  "fault_row_count": 146302,
+  "fault_row_pct": 12.225,
+  "train_row_count": 1146154,
+  "prediction_row_count": 50593,
+  "non_normal_features_count": 87,
+  "top_missing_columns": [],
+  "top_skewed_features": [
+    {
+      "feature": "sensor_26_avg",
+      "skewness": -984.4504247648567,
+      "kurtosis": 1039663.5252322144
+    },
+    {
+      "feature": "sensor_32_avg",
+      "skewness": -20.478446460799365,
+      "kurtosis": 4633.253526815281
+    },
+    {
+      "feature": "sensor_33_avg",
+      "skewness": -18.34969439545244,
+      "kurtosis": 4009.9186117194795
+    },
+    {
+      "feature": "sensor_5_std_cos",
+      "skewness": -10.364364552486991,
+      "kurtosis": 122.81698797546245
+    },
+    {
+      "feature": "wind_speed_3_std",
+      "skewness": 8.20403367129688,
+      "kurtosis": 399.222330134365
+    }
+  ],
+  "top_correlated_features": [
+    {
+      "feature": "sensor_0_avg",
+      "spearman_corr": 0.20969246099688707
+    },
+    {
+      "feature": "sensor_53_avg",
+      "spearman_corr": 0.18434624227875387
+    },
+    {
+      "feature": "sensor_43_avg",
+      "spearman_corr": 0.17414715888460133
+    },
+    {
+      "feature": "sensor_41_avg",
+      "spearman_corr": 0.1665444595522959
+    },
+    {
+      "feature": "sensor_6_avg",
+      "spearman_corr": 0.1608188061474184
+    }
+  ],
+  "feature_columns": [
+    "sensor_0_avg",
+    "wind_speed_3_avg",
+    "wind_speed_4_avg",
+    "wind_speed_3_max",
+    "wind_speed_3_min",
+    "wind_speed_3_std",
+    "sensor_6_avg",
+    "sensor_7_avg",
+    "sensor_8_avg",
+    "sensor_9_avg",
+    "sensor_10_avg",
+    "sensor_11_avg",
+    "sensor_12_avg",
+    "sensor_13_avg",
+    "sensor_14_avg",
+    "sensor_15_avg",
+    "sensor_16_avg",
+    "sensor_17_avg",
+    "sensor_18_avg",
+    "sensor_18_max",
+    "sensor_18_min",
+    "sensor_18_std",
+    "sensor_19_avg",
+    "sensor_20_avg",
+    "sensor_21_avg",
+    "sensor_22_avg",
+    "sensor_23_avg",
+    "sensor_24_avg",
+    "sensor_25_avg",
+    "sensor_26_avg",
+    "reactive_power_27_avg",
+    "reactive_power_27_max",
+    "reactive_power_27_min",
+    "reactive_power_27_std",
+    "reactive_power_28_avg",
+    "reactive_power_28_max",
+    "reactive_power_28_min",
+    "reactive_power_28_std",
+    "power_29_avg",
+    "power_29_max",
+    "power_29_min",
+    "power_29_std",
+    "power_30_avg",
+    "power_30_max",
+    "power_30_min",
+    "power_30_std",
+    "sensor_31_avg",
+    "sensor_31_max",
+    "sensor_31_min",
+    "sensor_31_std",
+    "sensor_32_avg",
+    "sensor_33_avg",
+    "sensor_34_avg",
+    "sensor_35_avg",
+    "sensor_36_avg",
+    "sensor_37_avg",
+    "sensor_38_avg",
+    "sensor_39_avg",
+    "sensor_40_avg",
+    "sensor_41_avg",
+    "sensor_43_avg",
+    "sensor_44",
+    "sensor_45",
+    "sensor_46",
+    "sensor_47",
+    "sensor_48",
+    "sensor_49",
+    "sensor_50",
+    "sensor_51",
+    "sensor_52_avg",
+    "sensor_52_max",
+    "sensor_52_min",
+    "sensor_52_std",
+    "sensor_53_avg",
+    "sensor_1_avg_sin",
+    "sensor_1_avg_cos",
+    "sensor_2_avg_sin",
+    "sensor_2_avg_cos",
+    "sensor_5_avg_sin",
+    "sensor_5_avg_cos",
+    "sensor_5_max_sin",
+    "sensor_5_max_cos",
+    "sensor_5_min_sin",
+    "sensor_5_min_cos",
+    "sensor_5_std_sin",
+    "sensor_5_std_cos",
+    "sensor_42_avg_sin",
+    "sensor_42_avg_cos",
+    "yaw_misalignment_abs"
+  ]
+}

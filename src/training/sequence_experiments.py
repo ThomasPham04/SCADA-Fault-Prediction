@@ -47,9 +47,42 @@ from training.sequence_utils import (
     load_json,
     reconstruction_scores,
     save_json,
+    save_model_summary,
     set_random_seed,
     to_int_list,
 )
+
+
+def _select_ae_threshold(
+    best_model,
+    X_val_normal: np.ndarray,
+    val_scores: np.ndarray,
+    y_val_labeled: np.ndarray,
+    batch_size: int,
+    identifier: str,
+) -> tuple:
+    """Returns (best_threshold, threshold_source, sweep_df)."""
+    no_fault_val = (
+        len(val_scores) == 0
+        or len(y_val_labeled) == 0
+        or int(y_val_labeled.max()) == 0
+    )
+    if no_fault_val:
+        normal_val_scores = reconstruction_scores(best_model, X_val_normal, batch_size=batch_size)
+        best_threshold = float(np.quantile(normal_val_scores, 0.99))
+        threshold_source = "normal_val_99th_percentile"
+        sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
+    else:
+        threshold_candidates = np.unique(
+            np.quantile(val_scores, np.linspace(0.80, 0.995, 40))
+        )
+        if len(threshold_candidates) == 0:
+            raise RuntimeError(f"Threshold sweep candidates are empty for {identifier}.")
+        sweep_df = sweep_thresholds(y_val_labeled, val_scores, threshold_candidates)
+        best_row = pick_best_threshold(sweep_df)
+        best_threshold = float(best_row["threshold"])
+        threshold_source = "validation_f1_sweep"
+    return best_threshold, threshold_source, sweep_df
 
 
 def run_classifier_experiment(
@@ -92,6 +125,8 @@ def run_classifier_experiment(
         dropout_rate=dropout_rate,
         l2_strength=l2_strength,
     )
+    model.summary()
+    save_model_summary(model, output_dir / "model_summary.txt")
     model_path = output_dir / "model.keras"
 
     history = model.fit(
@@ -236,6 +271,8 @@ def run_autoencoder_experiment(
     has_labeled_val = len(X_val_labeled) > 0
 
     model = build_autoencoder_model(model_name, input_shape)
+    model.summary()
+    save_model_summary(model, output_dir / "model_summary.txt")
     model_path = output_dir / "model.keras"
 
     history = model.fit(
@@ -263,25 +300,9 @@ def run_autoencoder_experiment(
     else:
         val_scores = np.empty(0, dtype=np.float32)
 
-    if not has_labeled_val or int(y_val_labeled.max()) == 0:
-        # Val set contains no fault examples (common with train_tail validation source
-        # where all training rows are normal). F1-sweep is meaningless here — fall back
-        # to a percentile threshold on the normal validation reconstruction errors so we
-        # capture the tail of normal behaviour rather than a random quantile of val scores.
-        normal_val_scores = reconstruction_scores(best_model, X_val_normal, batch_size=batch_size)
-        best_threshold = float(np.quantile(normal_val_scores, 0.99))
-        threshold_source = "normal_val_99th_percentile"
-        sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
-    else:
-        threshold_candidates = np.unique(
-            np.quantile(val_scores, np.linspace(0.80, 0.995, 40))
-        )
-        if len(threshold_candidates) == 0:
-            raise RuntimeError(f"Threshold sweep candidates are empty for asset {asset_id}.")
-        sweep_df = sweep_thresholds(y_val_labeled, val_scores, threshold_candidates)
-        best_row = pick_best_threshold(sweep_df)
-        best_threshold = float(best_row["threshold"])
-        threshold_source = "validation_f1_sweep"
+    best_threshold, threshold_source, sweep_df = _select_ae_threshold(
+        best_model, X_val_normal, val_scores, y_val_labeled, batch_size, f"asset {asset_id}"
+    )
 
     save_threshold_csv(sweep_df, output_dir / "threshold_sweep_val.csv")
     if not sweep_df.empty:
@@ -425,10 +446,11 @@ def run_global_autoencoder_experiment(
 
     input_shape = (int(X_train.shape[1]), int(X_train.shape[2]))
     X_val_labeled, y_val_labeled = load_classifier_val_slice(classifier_bundle, asset_filter=asset_filter)
-    # Empty labeled val is fine — threshold selection will use 99th-percentile fallback.
     has_labeled_val = len(X_val_labeled) > 0
 
     model = build_autoencoder_model(model_name, input_shape)
+    model.summary()
+    save_model_summary(model, output_dir / "model_summary.txt")
     model_path = output_dir / "model.keras"
 
     history = model.fit(
@@ -456,21 +478,9 @@ def run_global_autoencoder_experiment(
     else:
         val_scores = np.empty(0, dtype=np.float32)
 
-    if not has_labeled_val or int(y_val_labeled.max()) == 0:
-        normal_val_scores = reconstruction_scores(best_model, X_val_normal, batch_size=batch_size)
-        best_threshold = float(np.quantile(normal_val_scores, 0.99))
-        threshold_source = "normal_val_99th_percentile"
-        sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
-    else:
-        threshold_candidates = np.unique(
-            np.quantile(val_scores, np.linspace(0.80, 0.995, 40))
-        )
-        if len(threshold_candidates) == 0:
-            raise RuntimeError("Threshold sweep candidates are empty for global autoencoder.")
-        sweep_df = sweep_thresholds(y_val_labeled, val_scores, threshold_candidates)
-        best_row = pick_best_threshold(sweep_df)
-        best_threshold = float(best_row["threshold"])
-        threshold_source = "validation_f1_sweep"
+    best_threshold, threshold_source, sweep_df = _select_ae_threshold(
+        best_model, X_val_normal, val_scores, y_val_labeled, batch_size, "global autoencoder"
+    )
 
     save_threshold_csv(sweep_df, output_dir / "threshold_sweep_val.csv")
     if not sweep_df.empty:
@@ -588,7 +598,7 @@ def run_global_autoencoder_experiment(
             "model_name": model_name,
             "selected_threshold": best_threshold,
             "threshold_source": threshold_source,
-            "threshold_candidates": threshold_candidates.tolist() if threshold_source == "validation_f1_sweep" else [],
+            "threshold_candidates": sweep_df["threshold"].tolist() if threshold_source == "validation_f1_sweep" else [],
             "asset_filter": to_int_list(asset_filter),
         },
     )

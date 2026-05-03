@@ -8,7 +8,9 @@ import joblib
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from config import STRIDE
 from data_pipeline.loaders.sequence_maker import SequenceMaker

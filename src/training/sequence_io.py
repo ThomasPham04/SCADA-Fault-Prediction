@@ -15,8 +15,12 @@ import pandas as pd
 from training.sequence_utils import load_json, to_int_list
 
 
+def _resolve_filter_ids(asset_filter) -> set:
+    return set(to_int_list(asset_filter) or [])
+
+
 def list_asset_dirs(autoencoder_root: Path, asset_filter=None):
-    filter_ids = set(to_int_list(asset_filter) or [])
+    filter_ids = _resolve_filter_ids(asset_filter)
     asset_dirs = []
     for asset_dir in sorted(autoencoder_root.glob("asset_*")):
         try:
@@ -84,7 +88,7 @@ def load_autoencoder_asset_bundle(asset_dir: Path) -> dict:
 
 
 def _filter_array_by_asset_meta(X, meta_df: pd.DataFrame, asset_filter=None):
-    filter_ids = set(to_int_list(asset_filter) or [])
+    filter_ids = _resolve_filter_ids(asset_filter)
     if not filter_ids:
         return X, meta_df
     if "asset_id" not in meta_df.columns:
@@ -95,7 +99,7 @@ def _filter_array_by_asset_meta(X, meta_df: pd.DataFrame, asset_filter=None):
 
 def load_autoencoder_global_bundle(autoencoder_root: Path, asset_filter=None) -> dict:
     """Load pooled autoencoder data, falling back to per-asset exports when needed."""
-    filter_ids = set(to_int_list(asset_filter) or [])
+    filter_ids = _resolve_filter_ids(asset_filter)
     global_dir = autoencoder_root / "global"
 
     if global_dir.exists():
@@ -159,7 +163,7 @@ def load_asset_val_classifier_slice(bundle: dict, asset_id: int):
 
 def load_classifier_val_slice(bundle: dict, asset_filter=None):
     val_meta = bundle["val_meta"]
-    filter_ids = set(to_int_list(asset_filter) or [])
+    filter_ids = _resolve_filter_ids(asset_filter)
     if filter_ids:
         mask = pd.to_numeric(val_meta["asset_id"], errors="coerce").isin(filter_ids).to_numpy()
     else:
@@ -172,8 +176,9 @@ def load_classifier_val_slice(bundle: dict, asset_filter=None):
 
 def load_autoencoder_test_sequences(asset_dir: Path, asset_filter=None):
     sequence_rows = []
-    test_dir = asset_dir / "test_by_sequence" if (asset_dir / "test_by_sequence").exists() else asset_dir
-    filter_ids = set(to_int_list(asset_filter) or [])
+    test_by_seq = asset_dir / "test_by_sequence"
+    test_dir = test_by_seq if test_by_seq.exists() else asset_dir
+    filter_ids = _resolve_filter_ids(asset_filter)
     for npz_path in sorted(test_dir.rglob("sequence_*.npz")):
         with np.load(npz_path, allow_pickle=True) as data:
             label_key = "target_label" if "target_label" in data.files else "y"

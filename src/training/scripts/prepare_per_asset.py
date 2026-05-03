@@ -16,10 +16,9 @@ Usage:
     python -m src.training.scripts.prepare_per_asset
 """
 
-import json
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 import numpy as np
 import joblib
 
@@ -39,22 +38,8 @@ from data_pipeline.loaders.event_loader import EventLoader
 from data_pipeline.loaders.sequence_maker import SequenceMaker
 from data_pipeline.preprocessing.splitter import DataSplitter
 from data_pipeline.preprocessing.normalizer import AssetNormalizer
+from training.sequence_utils import save_json
 
-class SingleCSVPipeline:
-    """
-    Orchestrates the full single CSV data preparation pipeline.
-    """
-    def __init__(self, farm_dir: str, datasets_dir: str, output_dir: str) -> None:
-        self.farm_dir = farm_dir
-        self.datasets_dir = datasets_dir
-        self.output_dir = output_dir
-        self._event_loader = EventLoader(farm_dir=farm_dir, datasets_dir=datasets_dir)
-
-    def run(self) -> None: 
-        event_info = self._event_loader.load_event_info()
-        splitter = DataSplitter(datasets_dir=self.datasets_dir, event_info=event_info)
-        asset_groups = splitter.split_train_val_autoencoder()
-        
 
 class PerAssetPipeline:
     """
@@ -131,7 +116,8 @@ class PerAssetPipeline:
         asset_groups = splitter.group_events_by_asset()
 
         if asset_filter:
-            asset_groups = {str(k): v for k, v in asset_groups.items() if str(k) in [str(af) for af in asset_filter]}
+            filter_set = {str(af) for af in asset_filter}
+            asset_groups = {str(k): v for k, v in asset_groups.items() if str(k) in filter_set}
             if not asset_groups:
                 print(f"  [ERROR] No assets found matching the filter: {asset_filter}")
                 return {}
@@ -204,9 +190,7 @@ class PerAssetPipeline:
                 "n_test_events": len(test_scaled),
                 "event_contributions": contributions,
             }
-            # Save JSON for load_autoencoder_asset_bundle; keep pkl for backward compat
-            with open(os.path.join(asset_dir, "metadata.json"), "w", encoding="utf-8") as fh:
-                json.dump(metadata, fh, indent=2, default=str)
+            save_json(os.path.join(asset_dir, "metadata.json"), metadata)
             joblib.dump(metadata, os.path.join(asset_dir, "metadata.pkl"))
 
             summary[asset_id] = {
@@ -396,6 +380,7 @@ class PerAssetPipeline:
             "n_val_seq":   len(X_val_sc),
             "n_test_events": len(test_scaled),
         }
+        save_json(os.path.join(asset_dir, "metadata.json"), metadata)
         joblib.dump(metadata, os.path.join(asset_dir, "metadata.pkl"))
 
         print(f"\n  Asset '{asset_name}' saved → {asset_dir}")
