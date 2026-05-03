@@ -246,16 +246,13 @@ class CombinedSequencePipeline:
             )
             prepared["label"] = (prepared["label"] > 0).astype(np.int8)
         else:
-            import warnings
-            warnings.warn(
-                "No 'label' column found in combined CSV — falling back to "
-                "status_type_id-based labeling. This is unreliable for the original "
-                "CARE data where faults show status=0 (normal). Add labels via "
-                "GroundTruth.add_label_column() before running this pipeline.",
-                UserWarning,
-                stacklevel=2,
+            raise ValueError(
+                "Combined CSV has no 'label' column. "
+                "In the CARE dataset, fault events have status_type_id=0, so "
+                "status-based labeling incorrectly marks all faults as normal. "
+                "Rebuild the combined CSV using CAREToCombinedCSV (build_combined_csv.py) "
+                "which adds GroundTruth event-boundary labels."
             )
-            prepared["label"] = (~prepared["status_type_id"].isin(self.normal_statuses)).astype(np.int8)
 
         return prepared.sort_values(
             ["asset_id", "sequence_id", "time_stamp"],
@@ -364,8 +361,13 @@ class CombinedSequencePipeline:
         scalers = {}
 
         for asset_id, asset_rows in prepared_train.groupby("asset_id", sort=False):
+            # Fit scaler only on normal production rows so that maintenance/service
+            # sensor readings don't skew the scaling range.
+            normal_rows = asset_rows[asset_rows["status_type_id"].isin(self.normal_statuses)]
+            if normal_rows.empty:
+                normal_rows = asset_rows
             scaler = self._new_scaler()
-            scaler.fit(asset_rows[feature_cols].to_numpy(dtype=np.float32))
+            scaler.fit(normal_rows[feature_cols].to_numpy(dtype=np.float32))
             scalers[asset_id] = scaler
 
         if not scalers:
@@ -377,7 +379,7 @@ class CombinedSequencePipeline:
             return df.copy()
 
         transformed = self.fill_feature_gaps(df, feature_cols)
-        for asset_id, asset_rows in transformed.groupby("asset_id", sort=False):
+        for asset_id, asset_rows in transformed.groupby("asset_id", sort=Falee):
             if asset_id not in scalers:
                 raise KeyError(f"No scaler fitted for asset_id={asset_id}")
 
@@ -492,7 +494,9 @@ class CombinedSequencePipeline:
 
         for (_, _), group in df.groupby(["asset_id", "sequence_id"], sort=False):
             group = group.sort_values("time_stamp", kind="mergesort").copy()
-            normal_mask = group["label"].eq(0)
+            # Require both label==0 (no fault event) AND status_type_id in normal set
+            # (excludes maintenance, service, standby rows from autoencoder training)
+            normal_mask = group["label"].eq(0) & group["status_type_id"].isin(self.normal_statuses)
             if not normal_mask.any():
                 continue
 

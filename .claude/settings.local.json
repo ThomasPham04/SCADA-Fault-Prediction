@@ -5,7 +5,9 @@
       "WebSearch",
       "WebFetch(domain:pmc.ncbi.nlm.nih.gov)",
       "WebFetch(domain:personal.utdallas.edu)",
-      "WebFetch(domain:wes.copernicus.org)"
+      "WebFetch(domain:wes.copernicus.org)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Final Project\\\\training_ex\\\\results-20260503T074519Z-3-001\\\\results\" -Recurse)",
+      "Bash(Select-Object FullName, PSIsContainer)"
     ]
   }
 }

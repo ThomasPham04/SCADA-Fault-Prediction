@@ -18,19 +18,28 @@ from data_pipeline.loaders.sequence_maker import SequenceMaker
 
 class AssetNormalizer:
     """
-    Normalizes SCADA sequence data using a MinMaxScaler fitted only on
+    Normalizes SCADA sequence data using a scaler fitted only on
     training data — ensuring the model never sees anomalous patterns during
     normalization.
 
     Args:
         output_dir: Root directory where fitted scalers are saved.
         seq_len: Sequence window length used when sequencing test events.
+        stride: Step between consecutive sequence starts (must match training
+                stride so test sequence counts are consistent).
         scaler_type: Type of scaling ('standard' or 'minmax').
     """
 
-    def __init__(self, output_dir: str, seq_len: int, scaler_type: str = "standard") -> None:
-        self.output_dir = output_dir
-        self.seq_len    = seq_len
+    def __init__(
+        self,
+        output_dir: str,
+        seq_len: int,
+        stride: int = STRIDE,
+        scaler_type: str = "standard",
+    ) -> None:
+        self.output_dir  = output_dir
+        self.seq_len     = seq_len
+        self.stride      = stride
         self.scaler_type = scaler_type.lower()
         if self.scaler_type not in ("standard", "minmax"):
             raise ValueError("scaler_type must be 'standard' or 'minmax'")
@@ -75,7 +84,7 @@ class AssetNormalizer:
         y_train_sc = scaler.transform(y_train)
         y_val_sc   = scaler.transform(y_val)
 
-        seq_maker = SequenceMaker(window_size=self.seq_len, stride=STRIDE)
+        seq_maker = SequenceMaker(window_size=self.seq_len, stride=self.stride)
         test_data_scaled = {}
         for event_id, data in test_data_dict.items():
             X_test, y_test = seq_maker.create_sequences(data["features"])
@@ -84,21 +93,20 @@ class AssetNormalizer:
             X_test_sc = scaler.transform(X_test.reshape(-1, n_features)).reshape(-1, self.seq_len, n_features)
             y_test_sc = scaler.transform(y_test)
 
+            n_seqs = len(X_test)
+            s = self.stride
+
             seq_ts = []
             if "time_stamps" in data:
                 ts = data["time_stamps"]
-                stride = seq_maker.stride
-                seq_ts = [ts[i * stride + self.seq_len] for i in range(len(X_test))]
+                seq_ts = [ts[i * s + self.seq_len] for i in range(n_seqs)]
 
             # Label each window by its last timestep: window i is a fault window
-            # if and only if the last row it covers (i*stride + seq_len - 1) is
-            # labeled as a fault row. This mirrors the causal interpretation —
-            # the window predicts the state at the moment it ends.
-            n_seqs = len(X_test)
-            stride = seq_maker.stride
+            # if and only if the last row it covers (i*s + seq_len - 1) is labeled
+            # as a fault row.
             if "row_labels" in data:
                 row_labels = np.asarray(data["row_labels"])
-                last_row_indices = np.arange(n_seqs) * stride + self.seq_len - 1
+                last_row_indices = np.arange(n_seqs) * s + self.seq_len - 1
                 seq_labels = row_labels[last_row_indices].astype(np.int8)
             else:
                 seq_labels = np.zeros(n_seqs, dtype=np.int8)
@@ -131,10 +139,11 @@ def normalize_data(
     X_train, X_val, y_train, y_val,
     test_data_dict: dict,
     output_dir: str,
+    stride: int = STRIDE,
     scaler_type: str = "standard",
 ) -> tuple:
-    """Legacy alias — wraps AssetNormalizer.normalize_data()."""
-    norm = AssetNormalizer(output_dir=output_dir, seq_len=X_train.shape[1], scaler_type=scaler_type)
+    """Legacy alias — wraps AssetNormalizer.normalize_asset()."""
+    norm = AssetNormalizer(output_dir=output_dir, seq_len=X_train.shape[1], stride=stride, scaler_type=scaler_type)
     return norm.normalize_asset(0, X_train, X_val, y_train, y_val, test_data_dict)
 
 
@@ -144,8 +153,9 @@ def normalize_asset(
     test_data_dict: dict,
     output_dir: str,
     seq_len: int,
+    stride: int = STRIDE,
     scaler_type: str = "standard",
 ) -> tuple:
     """Legacy alias — wraps AssetNormalizer.normalize_asset()."""
-    norm = AssetNormalizer(output_dir=output_dir, seq_len=seq_len, scaler_type=scaler_type)
+    norm = AssetNormalizer(output_dir=output_dir, seq_len=seq_len, stride=stride, scaler_type=scaler_type)
     return norm.normalize_asset(asset_id, X_train, X_val, y_train, y_val, test_data_dict)

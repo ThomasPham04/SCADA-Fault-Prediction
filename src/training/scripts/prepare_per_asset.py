@@ -5,15 +5,18 @@ Entry-point script for preparing per-turbine (per-asset) training data.
 Follows the ref project's approach: train one model per asset (turbine),
 each on its own historical training data, with its own StandardScaler.
 
-Output structure:
-    Dataset/processed/Wind Farm A/per_asset/asset_{id}/
+Output structure (compatible with train_sequence_models.py):
+    <output_dir>/window_<W>h/autoencoder/asset_<id>/
         X_train.npy, X_val.npy, y_train.npy, y_val.npy
-        test_by_event/event_{id}.npz
-        scaler_asset_{id}.pkl
-        metadata.pkl
+        test_by_sequence/sequence_<event_id>.npz
+        scaler.pkl, scaler_asset_<id>.pkl
+        metadata.json, metadata.pkl
 
 Usage:
-    python -m src.training.scripts.prepare_per_asset
+    python src/training/scripts/prepare_per_asset.py
+    python src/training/scripts/prepare_per_asset.py --stride 36 --window-size 288
+    # Then train:
+    python src/training/scripts/train_sequence_models.py --skip-classifiers --windows 48
 """
 
 import os
@@ -29,7 +32,7 @@ if ROOT not in sys.path:
 from config import (
     WIND_FARM_A_DIR,
     WIND_FARM_A_DATASETS,
-    PER_ASSET_PROCESSED_DIR,
+    PROCESSED_DATA_DIR,
     WINDOW_SIZE,
     STRIDE,
     VAL_SIZE,
@@ -74,11 +77,18 @@ class PerAssetPipeline:
     ) -> None:
         self.farm_dir     = farm_dir
         self.datasets_dir = datasets_dir
-        self.output_dir   = output_dir
         self.window_size  = window_size
         self.stride       = stride
         self.val_size     = val_size
         self.scaler_type  = scaler_type
+
+        # Build output root compatible with SequenceModelTrainer's expected layout:
+        # <output_dir>/window_<H>h/autoencoder/asset_<id>/
+        window_hours = round(window_size * 10 / 60)
+        self.autoencoder_root = os.path.join(
+            output_dir, f"window_{window_hours}h", "autoencoder"
+        )
+        self._window_hours = window_hours
 
         self._event_loader = EventLoader(farm_dir=farm_dir, datasets_dir=datasets_dir)
         self._seq_maker    = SequenceMaker(window_size=window_size, stride=stride)
@@ -109,7 +119,8 @@ class PerAssetPipeline:
         print("=" * 70)
         print("Per-Asset Data Preparation Pipeline")
         print("=" * 70)
-        print(f"Output root: {self.output_dir}")
+        print(f"Window: {self.window_size} steps ({self._window_hours}h), stride: {self.stride} steps")
+        print(f"Output root: {self.autoencoder_root}")
 
         event_info = self._event_loader.load_event_info()
         splitter   = DataSplitter(datasets_dir=self.datasets_dir, event_info=event_info)
@@ -129,7 +140,7 @@ class PerAssetPipeline:
             print(f"Asset {asset_id}  ({len(event_ids)} events: {event_ids})")
             print(f"{'='*70}")
 
-            asset_dir = os.path.join(self.output_dir, f"asset_{asset_id}")
+            asset_dir = os.path.join(self.autoencoder_root, f"asset_{asset_id}")
             os.makedirs(asset_dir, exist_ok=True)
 
             # --- Train data ---
@@ -159,7 +170,7 @@ class PerAssetPipeline:
             print(f"\n  Sequences — Train: {X_train.shape}, Val: {X_val.shape}")
 
             # --- Normalization (per-asset scaler) ---
-            normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size, scaler_type=self.scaler_type)
+            normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size, stride=self.stride, scaler_type=self.scaler_type)
             X_train_sc, X_val_sc, y_train_sc, y_val_sc, test_scaled = \
                 normalizer.normalize_asset(
                     asset_id=asset_id,
@@ -212,8 +223,9 @@ class PerAssetPipeline:
                 f"{aid:<10} {s['train_seq']:>12,} {s['val_seq']:>10,} "
                 f"{s['test_events']:>13} {s['n_features']:>10}"
             )
-        print(f"\nAll per-asset data saved under: {self.output_dir}")
-        print("Next: python -m src.training.scripts.train_lstm --per_asset")
+        print(f"\nAll per-asset data saved under: {self.autoencoder_root}")
+        print(f"Next: python src/training/scripts/train_sequence_models.py "
+              f"--skip-classifiers --windows {self._window_hours}")
 
         return summary
 
@@ -260,9 +272,8 @@ class PerAssetPipeline:
             raise FileNotFoundError(f"CSV not found: {csv_path}")
 
         if looks_like_combined_sequence_csv(csv_path):
-            output_dir = sequence_output_dir or os.path.join(
-                os.path.dirname(os.path.dirname(self.output_dir)),
-                "sequence_exports",
+            output_dir = sequence_output_dir or os.path.dirname(
+                os.path.dirname(self.autoencoder_root)
             )
             print("=" * 70)
             print("Detected combined CSV schema.")
@@ -342,7 +353,7 @@ class PerAssetPipeline:
         # 6. Normalisation (fit on train only)
         #    normalizer.normalize_asset expects test_data_dict entries to have
         #    keys: features (raw array), label, event_start, event_end
-        asset_dir  = os.path.join(self.output_dir, f"asset_{asset_name}")
+        asset_dir  = os.path.join(self.autoencoder_root, f"asset_{asset_name}")
         os.makedirs(asset_dir, exist_ok=True)
 
         normalizer = AssetNormalizer(output_dir=asset_dir, seq_len=self.window_size, scaler_type=self.scaler_type)
@@ -422,6 +433,18 @@ def main() -> None:
         help="Restrict preparation to specific asset IDs (e.g. --assets 1 3 5).",
     )
     parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help=(
+            "Root output directory. Actual assets are written to "
+            "<output-dir>/window_<H>h/autoencoder/asset_<id>/. "
+            f"Defaults to {os.path.join(PROCESSED_DATA_DIR, 'sequence_exports')} "
+            "(same root as the combined prepare-care pipeline)."
+        ),
+    )
+    parser.add_argument(
         "--scaler",
         type=str,
         default="standard",
@@ -432,11 +455,12 @@ def main() -> None:
 
     stride      = args.stride      if args.stride      is not None else STRIDE
     window_size = args.window_size if args.window_size is not None else WINDOW_SIZE
+    output_dir  = args.output_dir  if args.output_dir  is not None else os.path.join(PROCESSED_DATA_DIR, "sequence_exports")
 
     pipeline = PerAssetPipeline(
         farm_dir=WIND_FARM_A_DIR,
         datasets_dir=WIND_FARM_A_DATASETS,
-        output_dir=PER_ASSET_PROCESSED_DIR,
+        output_dir=output_dir,
         window_size=window_size,
         stride=stride,
         val_size=VAL_SIZE,
