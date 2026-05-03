@@ -29,10 +29,11 @@ if SRC_DIR not in sys.path:
 def run_prepare_care(args: argparse.Namespace) -> None:
     """Build combined CSV from raw CARE per-event files, then prepare sequence exports."""
     import os
-    from config import PROCESSED_DATA_DIR, WIND_FARM_A_DIR, WIND_FARM_A_DATASETS
+    from config import PROCESSED_DATA_DIR, STRIDE, WIND_FARM_A_DIR, WIND_FARM_A_DATASETS
     from data_pipeline.preprocessing.build_combined_csv import CAREToCombinedCSV
     from data_pipeline.preprocessing.combined_sequence_pipeline import CombinedSequencePipeline
 
+    stride = args.stride if args.stride is not None else STRIDE
     farm_dir = args.farm_dir or WIND_FARM_A_DIR
     datasets_dir = args.datasets_dir or os.path.join(farm_dir, "datasets")
     if args.combined_csv_output:
@@ -53,6 +54,7 @@ def run_prepare_care(args: argparse.Namespace) -> None:
         selected_windows_hours=args.window_hours,
         window_candidates_hours=args.window_candidates_hours,
         top_k_windows=args.top_k_windows,
+        stride_steps=stride,
         expected_feature_count=args.expected_feature_count,
         scaler_type=args.combined_scaler,
         validation_source=args.validation_source,
@@ -65,6 +67,8 @@ def run_prepare_care(args: argparse.Namespace) -> None:
 
 def run_prepare(args: argparse.Namespace) -> None:
     """Prepare classifier and autoencoder exports from a combined CSV."""
+    from config import STRIDE as _DEFAULT_STRIDE
+    stride = args.stride if args.stride is not None else _DEFAULT_STRIDE
     if not args.csv:
         raise SystemExit(
             "prepare requires --csv. The CSV must contain time_stamp, asset_id, "
@@ -90,6 +94,7 @@ def run_prepare(args: argparse.Namespace) -> None:
         selected_windows_hours=args.window_hours,
         window_candidates_hours=args.window_candidates_hours,
         top_k_windows=args.top_k_windows,
+        stride_steps=stride,
         expected_feature_count=args.expected_feature_count,
         scaler_type=args.combined_scaler,
         validation_source=args.validation_source,
@@ -225,6 +230,18 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
         help=(
             "When --validation-source prediction is used, fraction of each "
             "asset_id + sequence_id prediction segment assigned to validation."
+        ),
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Stride (step) between sliding-window sequence starts in timesteps. "
+            "Defaults to the value in config.py (STRIDE=6, i.e. 1-hour steps). "
+            "Larger values reduce overlap and dataset size; e.g. --stride 36 gives "
+            "~75%% overlap with a 144-step window."
         ),
     )
     parser.add_argument("--seed", type=int, default=42)
@@ -480,6 +497,16 @@ def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--skip-window-search", action="store_true")
     parser.add_argument("--expected-feature-count", type=int, default=None)
     parser.add_argument("--combined-scaler", type=str, default="minmax", choices=["minmax", "standard"])
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Stride (step) between sliding-window sequence starts in timesteps. "
+            "Defaults to STRIDE in config.py (6 = 1-hour steps)."
+        ),
+    )
     parser.add_argument(
         "--validation-source",
         type=str,

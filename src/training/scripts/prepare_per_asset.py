@@ -388,15 +388,61 @@ class PerAssetPipeline:
         return asset_dir
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Prepare per-asset (per-turbine) sequence data for autoencoder training."
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Stride (step) between sliding-window starts in timesteps. "
+            f"Defaults to STRIDE in config.py (currently {STRIDE})."
+        ),
+    )
+    parser.add_argument(
+        "--window-size",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Sliding window length in timesteps. "
+            f"Defaults to WINDOW_SIZE in config.py (currently {WINDOW_SIZE})."
+        ),
+    )
+    parser.add_argument(
+        "--assets",
+        type=str,
+        nargs="+",
+        default=None,
+        metavar="ID",
+        help="Restrict preparation to specific asset IDs (e.g. --assets 1 3 5).",
+    )
+    parser.add_argument(
+        "--scaler",
+        type=str,
+        default="standard",
+        choices=["standard", "minmax"],
+        help="Scaler type for feature normalization.",
+    )
+    args = parser.parse_args()
+
+    stride      = args.stride      if args.stride      is not None else STRIDE
+    window_size = args.window_size if args.window_size is not None else WINDOW_SIZE
+
     pipeline = PerAssetPipeline(
         farm_dir=WIND_FARM_A_DIR,
         datasets_dir=WIND_FARM_A_DATASETS,
         output_dir=PER_ASSET_PROCESSED_DIR,
-        window_size=WINDOW_SIZE,
-        stride=STRIDE,
+        window_size=window_size,
+        stride=stride,
         val_size=VAL_SIZE,
+        scaler_type=args.scaler,
     )
-    pipeline.run()
+    pipeline.run(asset_filter=args.assets)
 
 
 if __name__ == "__main__":
