@@ -28,7 +28,9 @@ from training.sequence_models import (
     autoencoder_callbacks,
     build_autoencoder_model,
     build_classifier_model,
+    build_threshold_nn,
     classifier_callbacks,
+    threshold_nn_callbacks,
 )
 from training.sequence_plots import (
     build_prediction_frame,
@@ -41,10 +43,12 @@ from training.sequence_plots import (
     save_threshold_plot,
 )
 from training.sequence_utils import (
+    adaptive_reconstruction_scores,
     cleanup_tf,
     history_to_frame,
     load_best_model,
     load_json,
+    per_timestep_l2_scores,
     reconstruction_scores,
     save_json,
     save_model_summary,
@@ -242,6 +246,11 @@ def run_autoencoder_experiment(
     batch_size: int,
     overwrite: bool,
     save_predictions: bool,
+    learning_rate: float = 1e-3,
+    noise_stddev: float = 0.0,
+    use_adaptive_threshold: bool = False,
+    gamma: float = 0.344,
+    threshold_nn_units: int = 23,
 ) -> dict:
     metrics_path = output_dir / "metrics.json"
     if metrics_path.exists() and not overwrite:
@@ -270,7 +279,12 @@ def run_autoencoder_experiment(
     # Empty labeled val is fine — threshold selection will use 99th-percentile fallback.
     has_labeled_val = len(X_val_labeled) > 0
 
-    model = build_autoencoder_model(model_name, input_shape)
+    model = build_autoencoder_model(
+        model_name,
+        input_shape,
+        learning_rate=learning_rate,
+        noise_stddev=noise_stddev,
+    )
     model.summary()
     save_model_summary(model, output_dir / "model_summary.txt")
     model_path = output_dir / "model.keras"
@@ -294,15 +308,43 @@ def run_autoencoder_experiment(
         f"{model_name.upper()} Asset {asset_id} Train / Val Loss",
     )
 
+    # Adaptive threshold: train NN regression on validation data to predict expected RE
+    threshold_nn = None
+    if use_adaptive_threshold:
+        N_val, T_val, F_val = X_val_normal.shape
+        X_val_flat = X_val_normal.reshape(N_val * T_val, F_val)
+        val_ts_l2 = per_timestep_l2_scores(best_model, X_val_normal, batch_size).reshape(-1)
+        split = max(1, int(len(X_val_flat) * 0.8))
+        threshold_nn = build_threshold_nn(F_val, hidden_units=threshold_nn_units)
+        tnn_path = output_dir / "threshold_nn.keras"
+        threshold_nn.fit(
+            X_val_flat[:split], val_ts_l2[:split],
+            validation_data=(X_val_flat[split:], val_ts_l2[split:]),
+            epochs=300,
+            batch_size=batch_size,
+            callbacks=threshold_nn_callbacks(tnn_path),
+            verbose=0,
+        )
+        if tnn_path.exists():
+            threshold_nn = load_best_model(tnn_path)
+
     if has_labeled_val:
-        val_scores = reconstruction_scores(best_model, X_val_labeled, batch_size=batch_size)
+        if use_adaptive_threshold and threshold_nn is not None:
+            val_scores = adaptive_reconstruction_scores(best_model, threshold_nn, X_val_labeled, batch_size)
+        else:
+            val_scores = reconstruction_scores(best_model, X_val_labeled, batch_size)
         np.save(output_dir / "val_scores.npy", val_scores)
     else:
         val_scores = np.empty(0, dtype=np.float32)
 
-    best_threshold, threshold_source, sweep_df = _select_ae_threshold(
-        best_model, X_val_normal, val_scores, y_val_labeled, batch_size, f"asset {asset_id}"
-    )
+    if use_adaptive_threshold:
+        best_threshold = gamma
+        threshold_source = "adaptive_threshold_nn"
+        sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
+    else:
+        best_threshold, threshold_source, sweep_df = _select_ae_threshold(
+            best_model, X_val_normal, val_scores, y_val_labeled, batch_size, f"asset {asset_id}"
+        )
 
     save_threshold_csv(sweep_df, output_dir / "threshold_sweep_val.csv")
     if not sweep_df.empty:
@@ -320,8 +362,11 @@ def run_autoencoder_experiment(
     all_window_labels = []
 
     for sequence_data in test_sequences:
-        sequence_scores = reconstruction_scores(best_model, sequence_data["X"], batch_size=batch_size)
-        all_window_scores.append(sequence_scores)
+        if use_adaptive_threshold and threshold_nn is not None:
+            seq_scores = adaptive_reconstruction_scores(best_model, threshold_nn, sequence_data["X"], batch_size)
+        else:
+            seq_scores = reconstruction_scores(best_model, sequence_data["X"], batch_size=batch_size)
+        all_window_scores.append(seq_scores)
         all_window_labels.append(sequence_data["y"])
 
     if not all_window_scores:
@@ -418,6 +463,11 @@ def run_global_autoencoder_experiment(
     overwrite: bool,
     save_predictions: bool,
     asset_filter=None,
+    learning_rate: float = 1e-3,
+    noise_stddev: float = 0.0,
+    use_adaptive_threshold: bool = False,
+    gamma: float = 0.344,
+    threshold_nn_units: int = 23,
 ) -> dict:
     metrics_path = output_dir / "metrics.json"
     if metrics_path.exists() and not overwrite:
@@ -448,7 +498,12 @@ def run_global_autoencoder_experiment(
     X_val_labeled, y_val_labeled = load_classifier_val_slice(classifier_bundle, asset_filter=asset_filter)
     has_labeled_val = len(X_val_labeled) > 0
 
-    model = build_autoencoder_model(model_name, input_shape)
+    model = build_autoencoder_model(
+        model_name,
+        input_shape,
+        learning_rate=learning_rate,
+        noise_stddev=noise_stddev,
+    )
     model.summary()
     save_model_summary(model, output_dir / "model_summary.txt")
     model_path = output_dir / "model.keras"
@@ -472,15 +527,42 @@ def run_global_autoencoder_experiment(
         f"{model_name.upper()} Global Train / Val Loss",
     )
 
+    threshold_nn = None
+    if use_adaptive_threshold:
+        N_val, T_val, F_val = X_val_normal.shape
+        X_val_flat = X_val_normal.reshape(N_val * T_val, F_val)
+        val_ts_l2 = per_timestep_l2_scores(best_model, X_val_normal, batch_size).reshape(-1)
+        split = max(1, int(len(X_val_flat) * 0.8))
+        threshold_nn = build_threshold_nn(F_val, hidden_units=threshold_nn_units)
+        tnn_path = output_dir / "threshold_nn.keras"
+        threshold_nn.fit(
+            X_val_flat[:split], val_ts_l2[:split],
+            validation_data=(X_val_flat[split:], val_ts_l2[split:]),
+            epochs=300,
+            batch_size=batch_size,
+            callbacks=threshold_nn_callbacks(tnn_path),
+            verbose=0,
+        )
+        if tnn_path.exists():
+            threshold_nn = load_best_model(tnn_path)
+
     if has_labeled_val:
-        val_scores = reconstruction_scores(best_model, X_val_labeled, batch_size=batch_size)
+        if use_adaptive_threshold and threshold_nn is not None:
+            val_scores = adaptive_reconstruction_scores(best_model, threshold_nn, X_val_labeled, batch_size)
+        else:
+            val_scores = reconstruction_scores(best_model, X_val_labeled, batch_size=batch_size)
         np.save(output_dir / "val_scores.npy", val_scores)
     else:
         val_scores = np.empty(0, dtype=np.float32)
 
-    best_threshold, threshold_source, sweep_df = _select_ae_threshold(
-        best_model, X_val_normal, val_scores, y_val_labeled, batch_size, "global autoencoder"
-    )
+    if use_adaptive_threshold:
+        best_threshold = gamma
+        threshold_source = "adaptive_threshold_nn"
+        sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
+    else:
+        best_threshold, threshold_source, sweep_df = _select_ae_threshold(
+            best_model, X_val_normal, val_scores, y_val_labeled, batch_size, "global autoencoder"
+        )
 
     save_threshold_csv(sweep_df, output_dir / "threshold_sweep_val.csv")
     if not sweep_df.empty:
@@ -501,7 +583,10 @@ def run_global_autoencoder_experiment(
 
     prediction_frames = []
     for sequence_data in test_sequences:
-        sequence_scores = reconstruction_scores(best_model, sequence_data["X"], batch_size=batch_size)
+        if use_adaptive_threshold and threshold_nn is not None:
+            sequence_scores = adaptive_reconstruction_scores(best_model, threshold_nn, sequence_data["X"], batch_size)
+        else:
+            sequence_scores = reconstruction_scores(best_model, sequence_data["X"], batch_size=batch_size)
         prediction_frames.append(
             pd.DataFrame(
                 {

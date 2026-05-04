@@ -114,7 +114,7 @@ def run_train_sequences(args: argparse.Namespace) -> None:
     results_dir = args.results_dir or os.path.join(RESULTS_DIR, "sequence_training_results")
 
     _classifier_choices = {"lstm", "gru", "cnn_lstm", "cnn_gru"}
-    _autoencoder_choices = {"lstm_ae", "gru_ae"}
+    _autoencoder_choices = {"lstm_ae", "gru_ae", "dense_ae"}
 
     if args.model:
         unknown = [m for m in args.model if m not in _classifier_choices | _autoencoder_choices]
@@ -145,6 +145,11 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         autoencoder_epochs=args.autoencoder_epochs,
         autoencoder_batch_size=args.autoencoder_batch_size,
         autoencoder_scope=args.autoencoder_scope,
+        autoencoder_learning_rate=args.ae_lr,
+        autoencoder_noise=args.ae_noise,
+        autoencoder_use_adaptive_threshold=args.ae_adaptive_threshold,
+        autoencoder_gamma=args.ae_gamma,
+        autoencoder_threshold_nn_units=args.ae_threshold_nn_units,
     )
     SequenceModelTrainer(config).run()
 
@@ -249,7 +254,7 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
 
 def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
     classifier_choices = ["lstm", "gru", "cnn_lstm", "cnn_gru"]
-    autoencoder_choices = ["lstm_ae", "gru_ae"]
+    autoencoder_choices = ["lstm_ae", "gru_ae", "dense_ae"]
     all_model_choices = classifier_choices + autoencoder_choices
     parser.add_argument(
         "--model",
@@ -366,6 +371,51 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
             "Autoencoder training scope. 'per_asset' trains one model per turbine, "
             "'global' trains one pooled model across turbines, and 'both' runs both."
         ),
+    )
+    parser.add_argument(
+        "--ae-lr",
+        type=float,
+        default=1e-3,
+        metavar="LR",
+        help=(
+            "Adam learning rate for autoencoder models. "
+            "Paper value for Wind Farm A dense_ae: 0.0018 (default: 0.001)."
+        ),
+    )
+    parser.add_argument(
+        "--ae-noise",
+        type=float,
+        default=0.0,
+        metavar="STDDEV",
+        help=(
+            "Gaussian noise stddev injected into AE input during training. "
+            "Paper value for Wind Farm A: 0.06 (default: 0.0 = disabled)."
+        ),
+    )
+    parser.add_argument(
+        "--ae-adaptive-threshold",
+        action="store_true",
+        help=(
+            "Use adaptive threshold (NN regression + gamma) instead of F1 sweep. "
+            "Paper approach for Wind Farm A. Recommended with dense_ae."
+        ),
+    )
+    parser.add_argument(
+        "--ae-gamma",
+        type=float,
+        default=0.344,
+        metavar="G",
+        help=(
+            "Sensitivity parameter for adaptive threshold: "
+            "anomaly if RE > expected_RE + gamma. Paper value: 0.344 (default)."
+        ),
+    )
+    parser.add_argument(
+        "--ae-threshold-nn-units",
+        type=int,
+        default=23,
+        metavar="N",
+        help="Hidden units in the adaptive threshold NN. Paper value: 23 (default).",
     )
 
 

@@ -73,6 +73,11 @@ class SequenceTrainingConfig:
     autoencoder_epochs: int = 30
     autoencoder_batch_size: int = 128
     autoencoder_scope: str = "per_asset"
+    autoencoder_learning_rate: float = 1e-3
+    autoencoder_noise: float = 0.0
+    autoencoder_use_adaptive_threshold: bool = False
+    autoencoder_gamma: float = 0.344
+    autoencoder_threshold_nn_units: int = 23
 
     def __post_init__(self) -> None:
         self.exports_dir = _as_path(self.exports_dir)
@@ -83,6 +88,9 @@ class SequenceTrainingConfig:
         self.asset_filter = to_int_list(self.asset_filter)
         self.classifier_learning_rate = float(self.classifier_learning_rate)
         self.classifier_l2 = float(self.classifier_l2)
+        self.autoencoder_learning_rate = float(self.autoencoder_learning_rate)
+        self.autoencoder_noise = float(self.autoencoder_noise)
+        self.autoencoder_gamma = float(self.autoencoder_gamma)
         valid_scopes = {"per_asset", "global", "both"}
         if self.autoencoder_scope not in valid_scopes:
             raise ValueError(f"autoencoder_scope must be one of {sorted(valid_scopes)}")
@@ -182,6 +190,11 @@ class SequenceModelTrainer:
                         batch_size=cfg.autoencoder_batch_size,
                         overwrite=cfg.overwrite,
                         save_predictions=cfg.save_predictions,
+                        learning_rate=cfg.autoencoder_learning_rate,
+                        noise_stddev=cfg.autoencoder_noise,
+                        use_adaptive_threshold=cfg.autoencoder_use_adaptive_threshold,
+                        gamma=cfg.autoencoder_gamma,
+                        threshold_nn_units=cfg.autoencoder_threshold_nn_units,
                     )
                     asset_results.append(result)
 
@@ -221,6 +234,11 @@ class SequenceModelTrainer:
                     overwrite=cfg.overwrite,
                     save_predictions=cfg.save_predictions,
                     asset_filter=cfg.asset_filter,
+                    learning_rate=cfg.autoencoder_learning_rate,
+                    noise_stddev=cfg.autoencoder_noise,
+                    use_adaptive_threshold=cfg.autoencoder_use_adaptive_threshold,
+                    gamma=cfg.autoencoder_gamma,
+                    threshold_nn_units=cfg.autoencoder_threshold_nn_units,
                 )
                 autoencoder_rows.append(result["summary"])
                 autoencoder_payload.append(result["metrics"])
@@ -276,6 +294,9 @@ class SequenceModelTrainer:
         print(f"Classifier L2  : {cfg.classifier_l2}")
         print(f"Autoencoder set: {cfg.autoencoder_models}")
         print(f"Autoenc. scope : {cfg.autoencoder_scope}")
+        print(f"Autoenc. lr    : {cfg.autoencoder_learning_rate}")
+        print(f"Autoenc. noise : {cfg.autoencoder_noise}")
+        print(f"Adaptive thresh: {cfg.autoencoder_use_adaptive_threshold} (gamma={cfg.autoencoder_gamma})")
         print(f"Asset filter   : {cfg.asset_filter}")
 
         run_summary = {

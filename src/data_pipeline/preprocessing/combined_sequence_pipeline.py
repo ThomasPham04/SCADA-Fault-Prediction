@@ -379,7 +379,7 @@ class CombinedSequencePipeline:
             return df.copy()
 
         transformed = self.fill_feature_gaps(df, feature_cols)
-        for asset_id, asset_rows in transformed.groupby("asset_id", sort=Falee):
+        for asset_id, asset_rows in transformed.groupby("asset_id", sort=False):
             if asset_id not in scalers:
                 raise KeyError(f"No scaler fitted for asset_id={asset_id}")
 

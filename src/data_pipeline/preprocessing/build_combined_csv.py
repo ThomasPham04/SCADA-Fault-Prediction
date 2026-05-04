@@ -99,9 +99,17 @@ class CAREToCombinedCSV:
 
         for _, event in tqdm(event_info.iterrows(), total=len(event_info)):
             event_id = int(event["event_id"])
-            asset_id = int(event[asset_col])
             try:
                 df = self._loader.load_event_data(event_id)
+                if asset_col in event.index:
+                    asset_id = int(event[asset_col])
+                elif "asset_id" in df.columns:
+                    asset_id = int(df["asset_id"].iloc[0])
+                else:
+                    raise ValueError(
+                        f"Cannot determine asset_id for event {event_id}: "
+                        "not in event_info and not in event CSV."
+                    )
 
                 # Feature engineering: angle → sin/cos, drop legacy counters
                 df = self._engineer.engineer_angle_features(df)

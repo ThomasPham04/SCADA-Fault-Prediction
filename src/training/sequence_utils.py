@@ -83,6 +83,34 @@ def save_model_summary(model, path: Path) -> None:
 
 
 def reconstruction_scores(model, X, batch_size: int) -> np.ndarray:
-    recon = model.predict(X, batch_size=batch_size, verbose=0)
-    errors = np.mean(np.square(np.asarray(X) - recon), axis=(1, 2))
-    return errors.astype(np.float32)
+    """Mean per-timestep L2-norm of reconstruction error, shape (N,)."""
+    X_arr = np.asarray(X, dtype=np.float32)
+    recon = model.predict(X_arr, batch_size=batch_size, verbose=0)
+    # L2-norm per timestep: sqrt(sum of squared errors over features), then mean over timesteps
+    per_ts_l2 = np.sqrt(np.sum(np.square(X_arr - recon), axis=2))  # (N, T)
+    return np.mean(per_ts_l2, axis=1).astype(np.float32)  # (N,)
+
+
+def per_timestep_l2_scores(model, X, batch_size: int) -> np.ndarray:
+    """Per-timestep L2-norm of reconstruction error, shape (N, T)."""
+    X_arr = np.asarray(X, dtype=np.float32)
+    recon = model.predict(X_arr, batch_size=batch_size, verbose=0)
+    return np.sqrt(np.sum(np.square(X_arr - recon), axis=2)).astype(np.float32)
+
+
+def adaptive_reconstruction_scores(
+    ae_model,
+    threshold_nn,
+    X,
+    batch_size: int,
+) -> np.ndarray:
+    """Window anomaly score = mean(L2_t - expected_RE_t) over timesteps, shape (N,).
+
+    A score > gamma signals an anomaly when using the adaptive threshold.
+    """
+    X_arr = np.asarray(X, dtype=np.float32)
+    N, T, F = X_arr.shape
+    per_ts_l2 = per_timestep_l2_scores(ae_model, X_arr, batch_size)  # (N, T)
+    X_flat = X_arr.reshape(N * T, F)
+    expected_re = threshold_nn.predict(X_flat, batch_size=batch_size, verbose=0).reshape(N, T)
+    return np.mean(per_ts_l2 - expected_re, axis=1).astype(np.float32)
