@@ -78,6 +78,8 @@ class SequenceTrainingConfig:
     autoencoder_use_adaptive_threshold: bool = False
     autoencoder_gamma: float = 0.344
     autoencoder_threshold_nn_units: int = 23
+    autoencoder_encoder_units: int | None = None
+    autoencoder_bottleneck_units: int | None = None
 
     def __post_init__(self) -> None:
         self.exports_dir = _as_path(self.exports_dir)
@@ -195,6 +197,8 @@ class SequenceModelTrainer:
                         use_adaptive_threshold=cfg.autoencoder_use_adaptive_threshold,
                         gamma=cfg.autoencoder_gamma,
                         threshold_nn_units=cfg.autoencoder_threshold_nn_units,
+                        encoder_units=cfg.autoencoder_encoder_units,
+                        bottleneck_units=cfg.autoencoder_bottleneck_units,
                     )
                     asset_results.append(result)
 
@@ -239,6 +243,8 @@ class SequenceModelTrainer:
                     use_adaptive_threshold=cfg.autoencoder_use_adaptive_threshold,
                     gamma=cfg.autoencoder_gamma,
                     threshold_nn_units=cfg.autoencoder_threshold_nn_units,
+                    encoder_units=cfg.autoencoder_encoder_units,
+                    bottleneck_units=cfg.autoencoder_bottleneck_units,
                 )
                 autoencoder_rows.append(result["summary"])
                 autoencoder_payload.append(result["metrics"])
@@ -297,6 +303,8 @@ class SequenceModelTrainer:
         print(f"Autoenc. lr    : {cfg.autoencoder_learning_rate}")
         print(f"Autoenc. noise : {cfg.autoencoder_noise}")
         print(f"Adaptive thresh: {cfg.autoencoder_use_adaptive_threshold} (gamma={cfg.autoencoder_gamma})")
+        print(f"AE encoder     : {cfg.autoencoder_encoder_units} (None=arch default)")
+        print(f"AE bottleneck  : {cfg.autoencoder_bottleneck_units} (None=arch default)")
         print(f"Asset filter   : {cfg.asset_filter}")
 
         run_summary = {

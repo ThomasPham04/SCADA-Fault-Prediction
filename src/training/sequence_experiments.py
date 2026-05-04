@@ -251,6 +251,8 @@ def run_autoencoder_experiment(
     use_adaptive_threshold: bool = False,
     gamma: float = 0.344,
     threshold_nn_units: int = 23,
+    encoder_units: int | None = None,
+    bottleneck_units: int | None = None,
 ) -> dict:
     metrics_path = output_dir / "metrics.json"
     if metrics_path.exists() and not overwrite:
@@ -282,6 +284,8 @@ def run_autoencoder_experiment(
     model = build_autoencoder_model(
         model_name,
         input_shape,
+        encoder_units=encoder_units,
+        bottleneck_units=bottleneck_units,
         learning_rate=learning_rate,
         noise_stddev=noise_stddev,
     )
@@ -468,6 +472,8 @@ def run_global_autoencoder_experiment(
     use_adaptive_threshold: bool = False,
     gamma: float = 0.344,
     threshold_nn_units: int = 23,
+    encoder_units: int | None = None,
+    bottleneck_units: int | None = None,
 ) -> dict:
     metrics_path = output_dir / "metrics.json"
     if metrics_path.exists() and not overwrite:
@@ -501,6 +507,8 @@ def run_global_autoencoder_experiment(
     model = build_autoencoder_model(
         model_name,
         input_shape,
+        encoder_units=encoder_units,
+        bottleneck_units=bottleneck_units,
         learning_rate=learning_rate,
         noise_stddev=noise_stddev,
     )

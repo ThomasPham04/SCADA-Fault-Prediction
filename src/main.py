@@ -150,6 +150,8 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         autoencoder_use_adaptive_threshold=args.ae_adaptive_threshold,
         autoencoder_gamma=args.ae_gamma,
         autoencoder_threshold_nn_units=args.ae_threshold_nn_units,
+        autoencoder_encoder_units=args.ae_encoder_units,
+        autoencoder_bottleneck_units=args.ae_bottleneck_units,
     )
     SequenceModelTrainer(config).run()
 
@@ -416,6 +418,27 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
         default=23,
         metavar="N",
         help="Hidden units in the adaptive threshold NN. Paper value: 23 (default).",
+    )
+    parser.add_argument(
+        "--ae-encoder-units",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Encoder hidden units for the autoencoder. "
+            "dense_ae default: 25 (paper Wind Farm A). lstm_ae/gru_ae default: 96."
+        ),
+    )
+    parser.add_argument(
+        "--ae-bottleneck-units",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Bottleneck hidden units for the autoencoder. "
+            "dense_ae default: 4 (paper Wind Farm A, 11:1 ratio for 44 features). "
+            "For 88 features consider 8 to keep a similar 11:1 ratio."
+        ),
     )
 
 
