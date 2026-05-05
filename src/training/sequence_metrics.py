@@ -46,6 +46,14 @@ def safe_roc_auc(y_true: np.ndarray, y_score: np.ndarray):
 def evaluate_at_threshold(y_true: np.ndarray, y_score: np.ndarray, threshold: float) -> dict:
     y_true = np.asarray(y_true).astype(int)
     y_score = np.asarray(y_score, dtype=float)
+    if len(y_true) == 0:
+        return {
+            "threshold": float(threshold),
+            "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0,
+            "pr_auc": float("nan"), "roc_auc": float("nan"),
+            "confusion_matrix": [[0, 0], [0, 0]],
+            "support": 0, "positive_count": 0, "negative_count": 0,
+        }
     y_pred = (y_score >= threshold).astype(int)
 
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1])

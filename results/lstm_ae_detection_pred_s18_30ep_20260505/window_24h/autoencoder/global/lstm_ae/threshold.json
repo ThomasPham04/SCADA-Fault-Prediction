@@ -1,0 +1,8 @@
+{
+  "scope": "global",
+  "model_name": "lstm_ae",
+  "selected_threshold": 1.2041445612907409,
+  "threshold_source": "normal_val_99th_percentile",
+  "threshold_candidates": [],
+  "asset_filter": null
+}

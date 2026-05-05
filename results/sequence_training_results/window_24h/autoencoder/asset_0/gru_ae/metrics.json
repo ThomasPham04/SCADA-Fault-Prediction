@@ -1,0 +1,75 @@
+{
+  "model_name": "gru_ae",
+  "asset_id": 0,
+  "train_shape": [
+    36104,
+    144,
+    17
+  ],
+  "val_normal_shape": [
+    324,
+    144,
+    17
+  ],
+  "val_labeled_shape": [
+    755,
+    144,
+    17
+  ],
+  "selected_threshold": 0.012617755681276321,
+  "validation_metrics": {
+    "threshold": 0.012617755681276321,
+    "accuracy": 0.5205298013245033,
+    "precision": 0.609271523178808,
+    "recall": 0.23291139240506328,
+    "f1": 0.336996336996337,
+    "pr_auc": 0.6121065875715834,
+    "roc_auc": 0.5690506329113924,
+    "confusion_matrix": [
+      [
+        301,
+        59
+      ],
+      [
+        303,
+        92
+      ]
+    ],
+    "support": 755,
+    "positive_count": 395,
+    "negative_count": 360
+  },
+  "test_metrics": {
+    "threshold": 0.012617755681276321,
+    "accuracy": 0.4781456953642384,
+    "precision": 0.504424778761062,
+    "recall": 0.14430379746835442,
+    "f1": 0.22440944881889763,
+    "pr_auc": 0.5283378917997572,
+    "roc_auc": 0.4722292545710267,
+    "confusion_matrix": [
+      [
+        304,
+        56
+      ],
+      [
+        338,
+        57
+      ]
+    ],
+    "support": 755,
+    "positive_count": 395,
+    "negative_count": 360
+  },
+  "summary": {
+    "model_name": "gru_ae",
+    "asset_id": 0,
+    "threshold": 0.012617755681276321,
+    "accuracy": 0.4781456953642384,
+    "precision": 0.504424778761062,
+    "recall": 0.14430379746835442,
+    "f1": 0.22440944881889763,
+    "pr_auc": 0.5283378917997572,
+    "roc_auc": 0.4722292545710267
+  }
+}

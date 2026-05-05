@@ -1,0 +1,8 @@
+{
+  "scope": "global",
+  "model_name": "gru_ae",
+  "selected_threshold": 0.029246181603521073,
+  "threshold_source": "normal_val_99th_percentile",
+  "threshold_candidates": [],
+  "asset_filter": null
+}

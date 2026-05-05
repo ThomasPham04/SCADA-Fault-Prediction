@@ -1,0 +1,104 @@
+{
+  "exports_dir": "/home/terry/Project/SCADA-Fault-Detection/Dataset/processed/sequence_exports_prediction_val",
+  "results_dir": "results/sequence_training_results_cnn_lstm_only",
+  "windows_requested": [
+    24
+  ],
+  "windows_completed": [
+    {
+      "window_hours": 24,
+      "classifier_models": [
+        {
+          "model_name": "cnn_lstm",
+          "train_shape": [
+            190246,
+            144,
+            17
+          ],
+          "val_shape": [
+            3437,
+            144,
+            17
+          ],
+          "test_shape": [
+            3439,
+            144,
+            17
+          ],
+          "hyperparameters": {
+            "learning_rate": 0.0003,
+            "dropout_rate": 0.35,
+            "l2_strength": 0.0001
+          },
+          "selected_threshold": 0.5000000000000001,
+          "validation_metrics": {
+            "threshold": 0.5000000000000001,
+            "accuracy": 0.8091358743089904,
+            "precision": 0.9133047210300429,
+            "recall": 0.6571957998764669,
+            "f1": 0.764367816091954,
+            "pr_auc": 0.8098838000403921,
+            "roc_auc": 0.8062338661290465,
+            "confusion_matrix": [
+              [
+                1717,
+                101
+              ],
+              [
+                555,
+                1064
+              ]
+            ],
+            "support": 3437,
+            "positive_count": 1619,
+            "negative_count": 1818
+          },
+          "test_metrics": {
+            "threshold": 0.5000000000000001,
+            "accuracy": 0.7810410002907822,
+            "precision": 0.7741935483870968,
+            "recall": 0.7555555555555555,
+            "f1": 0.7647610121836926,
+            "pr_auc": 0.8559787547314534,
+            "roc_auc": 0.8249233061171856,
+            "confusion_matrix": [
+              [
+                1462,
+                357
+              ],
+              [
+                396,
+                1224
+              ]
+            ],
+            "support": 3439,
+            "positive_count": 1620,
+            "negative_count": 1819
+          },
+          "summary": {
+            "model_name": "cnn_lstm",
+            "threshold": 0.5000000000000001,
+            "accuracy": 0.7810410002907822,
+            "precision": 0.7741935483870968,
+            "recall": 0.7555555555555555,
+            "f1": 0.7647610121836926,
+            "pr_auc": 0.8559787547314534,
+            "roc_auc": 0.8249233061171856
+          }
+        }
+      ],
+      "autoencoder_models": [],
+      "best_classifier": {
+        "model_name": "cnn_lstm",
+        "threshold": 0.5000000000000001,
+        "accuracy": 0.7810410002907822,
+        "precision": 0.7741935483870968,
+        "recall": 0.7555555555555555,
+        "f1": 0.7647610121836926,
+        "pr_auc": 0.8559787547314534,
+        "roc_auc": 0.8249233061171856
+      },
+      "best_autoencoder": null
+    }
+  ]
+}

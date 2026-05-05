@@ -1,0 +1,180 @@
+{
+  "window_hours": 24,
+  "classifier_models": [],
+  "autoencoder_models": [
+    {
+      "model_name": "lstm_ae",
+      "scope": "global",
+      "source": "global_export",
+      "asset_ids": [
+        0,
+        10,
+        11,
+        13,
+        21
+      ],
+      "asset_filter": null,
+      "train_shape": [
+        45164,
+        144,
+        88
+      ],
+      "val_normal_shape": [
+        476,
+        144,
+        88
+      ],
+      "val_labeled_shape": [
+        867,
+        144,
+        88
+      ],
+      "selected_threshold": 0.012271084673702717,
+      "validation_metrics": {
+        "threshold": 0.012271084673702717,
+        "accuracy": 0.5478662053056517,
+        "precision": 0.41420118343195267,
+        "recall": 0.1928374655647383,
+        "f1": 0.2631578947368421,
+        "pr_auc": 0.4257187207816861,
+        "roc_auc": 0.4728835978835979,
+        "confusion_matrix": [
+          [
+            405,
+            99
+          ],
+          [
+            293,
+            70
+          ]
+        ],
+        "support": 867,
+        "positive_count": 363,
+        "negative_count": 504
+      },
+      "test_metrics": {
+        "threshold": 0.012271084673702717,
+        "accuracy": 0.6002304147465438,
+        "precision": 0.36036036036036034,
+        "recall": 0.2807017543859649,
+        "f1": 0.3155818540433925,
+        "pr_auc": 0.35093201849870526,
+        "roc_auc": 0.5459781529294935,
+        "confusion_matrix": [
+          [
+            441,
+            142
+          ],
+          [
+            205,
+            80
+          ]
+        ],
+        "support": 868,
+        "positive_count": 285,
+        "negative_count": 583
+      },
+      "asset_summaries": [
+        {
+          "model_name": "lstm_ae",
+          "scope": "global",
+          "asset_id": 0,
+          "threshold": 0.012271084673702717,
+          "accuracy": 0.546875,
+          "precision": 0.265625,
+          "recall": 0.2982456140350877,
+          "f1": 0.2809917355371901,
+          "pr_auc": 0.28734328513054963,
+          "roc_auc": 0.5170890188434049
+        },
+        {
+          "model_name": "lstm_ae",
+          "scope": "global",
+          "asset_id": 10,
+          "threshold": 0.012271084673702717,
+          "accuracy": 0.6016260162601627,
+          "precision": 0.5625,
+          "recall": 0.33962264150943394,
+          "f1": 0.4235294117647059,
+          "pr_auc": 0.56758464355199,
+          "roc_auc": 0.636522911051213
+        },
+        {
+          "model_name": "lstm_ae",
+          "scope": "global",
+          "asset_id": 11,
+          "threshold": 0.012271084673702717,
+          "accuracy": 0.8129032258064516,
+          "precision": 0.5357142857142857,
+          "recall": 0.4838709677419355,
+          "f1": 0.5084745762711864,
+          "pr_auc": 0.5348387181381667,
+          "roc_auc": 0.853537981269511
+        },
+        {
+          "model_name": "lstm_ae",
+          "scope": "global",
+          "asset_id": 13,
+          "threshold": 0.012271084673702717,
+          "accuracy": 0.5630252100840336,
+          "precision": 0.3235294117647059,
+          "recall": 0.275,
+          "f1": 0.2972972972972973,
+          "pr_auc": 0.2868671197963558,
+          "roc_auc": 0.3914556962025317
+        },
+        {
+          "model_name": "lstm_ae",
+          "scope": "global",
+          "asset_id": 21,
+          "threshold": 0.012271084673702717,
+          "accuracy": 0.4807692307692308,
+          "precision": 0.03125,
+          "recall": 0.0196078431372549,
+          "f1": 0.024096385542168676,
+          "pr_auc": 0.25048873279185585,
+          "roc_auc": 0.35985060690943044
+        }
+      ],
+      "summary": {
+        "model_name": "lstm_ae",
+        "scope": "global",
+        "source": "global_export",
+        "asset_count": 5,
+        "threshold": 0.012271084673702717,
+        "macro_accuracy": 0.6010397365839758,
+        "macro_precision": 0.34372373949579826,
+        "macro_recall": 0.28326941328474237,
+        "macro_f1": 0.3068778812825097,
+        "macro_pr_auc": 0.3854244998817836,
+        "macro_roc_auc": 0.5516912428552183,
+        "pooled_accuracy": 0.6002304147465438,
+        "pooled_precision": 0.36036036036036034,
+        "pooled_recall": 0.2807017543859649,
+        "pooled_f1": 0.3155818540433925,
+        "pooled_pr_auc": 0.35093201849870526,
+        "pooled_roc_auc": 0.5459781529294935
+      }
+    }
+  ],
+  "best_classifier": null,
+  "best_autoencoder": {
+    "model_name": "lstm_ae",
+    "scope": "global",
+    "source": "global_export",
+    "asset_count": 5,
+    "threshold": 0.012271084673702717,
+    "macro_accuracy": 0.6010397365839758,
+    "macro_precision": 0.34372373949579826,
+    "macro_recall": 0.28326941328474237,
+    "macro_f1": 0.3068778812825097,
+    "macro_pr_auc": 0.3854244998817836,
+    "macro_roc_auc": 0.5516912428552183,
+    "pooled_accuracy": 0.6002304147465438,
+    "pooled_precision": 0.36036036036036034,
+    "pooled_recall": 0.2807017543859649,
+    "pooled_f1": 0.3155818540433925,
+    "pooled_pr_auc": 0.35093201849870526,
+    "pooled_roc_auc": 0.5459781529294935
+  }
+}

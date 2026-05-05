@@ -1,0 +1,154 @@
+{
+  "model_name": "dense_ae",
+  "scope": "global",
+  "source": "global_export",
+  "asset_ids": [
+    0,
+    10,
+    11,
+    13,
+    21
+  ],
+  "asset_filter": null,
+  "train_shape": [
+    53756,
+    144,
+    88
+  ],
+  "val_normal_shape": [
+    578,
+    144,
+    88
+  ],
+  "val_labeled_shape": [
+    1154,
+    144,
+    88
+  ],
+  "selected_threshold": 0.344,
+  "validation_metrics": {
+    "threshold": 0.344,
+    "accuracy": 0.5797227036395147,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "pr_auc": 0.4232484971864872,
+    "roc_auc": 0.42456967623626585,
+    "confusion_matrix": [
+      [
+        669,
+        0
+      ],
+      [
+        485,
+        0
+      ]
+    ],
+    "support": 1154,
+    "positive_count": 485,
+    "negative_count": 669
+  },
+  "test_metrics": {
+    "threshold": 0.344,
+    "accuracy": 0.6926406926406926,
+    "precision": 0.75,
+    "recall": 0.09498680738786279,
+    "f1": 0.1686182669789227,
+    "pr_auc": 0.4696110324345998,
+    "roc_auc": 0.5649872154067949,
+    "confusion_matrix": [
+      [
+        764,
+        12
+      ],
+      [
+        343,
+        36
+      ]
+    ],
+    "support": 1155,
+    "positive_count": 379,
+    "negative_count": 776
+  },
+  "asset_summaries": [
+    {
+      "model_name": "dense_ae",
+      "scope": "global",
+      "asset_id": 0,
+      "threshold": 0.344,
+      "accuracy": 0.7047244094488189,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.24097834743900445,
+      "roc_auc": 0.39620111731843577
+    },
+    {
+      "model_name": "dense_ae",
+      "scope": "global",
+      "asset_id": 10,
+      "threshold": 0.344,
+      "accuracy": 0.6474164133738601,
+      "precision": 0.782608695652174,
+      "recall": 0.2535211267605634,
+      "f1": 0.3829787234042553,
+      "pr_auc": 0.71519935066453,
+      "roc_auc": 0.7373653686826842
+    },
+    {
+      "model_name": "dense_ae",
+      "scope": "global",
+      "asset_id": 11,
+      "threshold": 0.344,
+      "accuracy": 0.7922705314009661,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.46907362878364406,
+      "roc_auc": 0.6939465177784309
+    },
+    {
+      "model_name": "dense_ae",
+      "scope": "global",
+      "asset_id": 13,
+      "threshold": 0.344,
+      "accuracy": 0.6624203821656051,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.4704507402703888,
+      "roc_auc": 0.606132075471698
+    },
+    {
+      "model_name": "dense_ae",
+      "scope": "global",
+      "asset_id": 21,
+      "threshold": 0.344,
+      "accuracy": 0.6730769230769231,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.23004495653876367,
+      "roc_auc": 0.2597689075630252
+    }
+  ],
+  "summary": {
+    "model_name": "dense_ae",
+    "scope": "global",
+    "source": "global_export",
+    "asset_count": 5,
+    "threshold": 0.344,
+    "macro_accuracy": 0.6959817318932346,
+    "macro_precision": 0.1565217391304348,
+    "macro_recall": 0.05070422535211268,
+    "macro_f1": 0.07659574468085106,
+    "macro_pr_auc": 0.42514940473926616,
+    "macro_roc_auc": 0.5386827973628547,
+    "pooled_accuracy": 0.6926406926406926,
+    "pooled_precision": 0.75,
+    "pooled_recall": 0.09498680738786279,
+    "pooled_f1": 0.1686182669789227,
+    "pooled_pr_auc": 0.4696110324345998,
+    "pooled_roc_auc": 0.5649872154067949
+  }
+}

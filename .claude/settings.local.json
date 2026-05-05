@@ -9,7 +9,8 @@
       "Bash(Get-ChildItem -Path \"D:\\\\Final Project\\\\training_ex\\\\results-20260503T074519Z-3-001\\\\results\" -Recurse)",
       "Bash(Select-Object FullName, PSIsContainer)",
       "Read(//d/Final Project/training_ex/results-20260503T074519Z-3-001/results/sequence_training_fixed-20260503T175141Z-3-001/sequence_training_fixed/**)",
-      "Bash(dir /s /b)"
+      "Bash(dir /s /b)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

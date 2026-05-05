@@ -1,0 +1,76 @@
+{
+  "architecture_summary": {
+    "model_name": "lstm_ae",
+    "scope": "per_asset",
+    "asset_count": 5,
+    "macro_accuracy": 0.6535972563770873,
+    "macro_precision": 0.2932600732600733,
+    "macro_recall": 0.04365508829794544,
+    "macro_f1": 0.07352920965572757,
+    "macro_pr_auc": 0.4040009855679917,
+    "macro_roc_auc": 0.5427920494301723,
+    "pooled_accuracy": 0.6441254250094447,
+    "pooled_precision": 0.6761904761904762,
+    "pooled_recall": 0.07252298263534218,
+    "pooled_f1": 0.13099630996309963,
+    "pooled_pr_auc": 0.4422757492870084,
+    "pooled_roc_auc": 0.538529135833315
+  },
+  "asset_summaries": [
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 0,
+      "threshold": 1.658590167760849,
+      "accuracy": 0.6335616438356164,
+      "precision": 0.5714285714285714,
+      "recall": 0.037037037037037035,
+      "f1": 0.06956521739130435,
+      "pr_auc": 0.37379327545163316,
+      "roc_auc": 0.47783313204508854
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 10,
+      "threshold": 1.6228717207908623,
+      "accuracy": 0.582537517053206,
+      "precision": 0.7948717948717948,
+      "recall": 0.17613636363636365,
+      "f1": 0.28837209302325584,
+      "pr_auc": 0.6254887787949883,
+      "roc_auc": 0.5936456096397041
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 11,
+      "threshold": 1.7425617277622223,
+      "accuracy": 0.7810526315789473,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.38103433212118104,
+      "roc_auc": 0.7402031930333817
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 13,
+      "threshold": 1.732075762748719,
+      "accuracy": 0.6976127320954907,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.2800893008672134,
+      "roc_auc": 0.4540405066720856
+    },
+    {
+      "model_name": "lstm_ae",
+      "asset_id": 21,
+      "threshold": 1.652136328220368,
+      "accuracy": 0.5732217573221757,
+      "precision": 0.1,
+      "recall": 0.00510204081632653,
+      "f1": 0.009708737864077669,
+      "pr_auc": 0.35959924060494247,
+      "roc_auc": 0.44823780576060207
+    }
+  ]
+}

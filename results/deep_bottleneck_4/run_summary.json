@@ -1,0 +1,65 @@
+{
+  "exports_dir": "Dataset/processed/sequence_exports_prediction_val",
+  "results_dir": "results/deep_bottleneck_4",
+  "windows_requested": [
+    24
+  ],
+  "windows_completed": [
+    {
+      "window_hours": 24,
+      "classifier_models": [],
+      "autoencoder_models": [
+        {
+          "architecture_summary": {
+            "model_name": "small_lstm_ae",
+            "scope": "per_asset",
+            "asset_count": 1,
+            "macro_accuracy": 0.6609271523178808,
+            "macro_precision": 0.2839506172839506,
+            "macro_recall": 0.10407239819004525,
+            "macro_f1": 0.152317880794702,
+            "macro_pr_auc": 0.28996959259976834,
+            "macro_roc_auc": 0.524454725710509,
+            "pooled_accuracy": 0.6609271523178808,
+            "pooled_precision": 0.2839506172839506,
+            "pooled_recall": 0.10407239819004525,
+            "pooled_f1": 0.152317880794702,
+            "pooled_pr_auc": 0.28996959259976834,
+            "pooled_roc_auc": 0.524454725710509
+          },
+          "asset_summaries": [
+            {
+              "model_name": "small_lstm_ae",
+              "asset_id": 0,
+              "threshold": 0.03445038396865129,
+              "accuracy": 0.6609271523178808,
+              "precision": 0.2839506172839506,
+              "recall": 0.10407239819004525,
+              "f1": 0.152317880794702,
+              "pr_auc": 0.28996959259976834,
+              "roc_auc": 0.524454725710509
+            }
+          ]
+        }
+      ],
+      "best_classifier": null,
+      "best_autoencoder": {
+        "model_name": "small_lstm_ae",
+        "scope": "per_asset",
+        "asset_count": 1,
+        "macro_accuracy": 0.6609271523178808,
+        "macro_precision": 0.2839506172839506,
+        "macro_recall": 0.10407239819004525,
+        "macro_f1": 0.152317880794702,
+        "macro_pr_auc": 0.28996959259976834,
+        "macro_roc_auc": 0.524454725710509,
+        "pooled_accuracy": 0.6609271523178808,
+        "pooled_precision": 0.2839506172839506,
+        "pooled_recall": 0.10407239819004525,
+        "pooled_f1": 0.152317880794702,
+        "pooled_pr_auc": 0.28996959259976834,
+        "pooled_roc_auc": 0.524454725710509
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "asset_id": 21,
+  "model_name": "lstm_ae",
+  "selected_threshold": 1.171480369567871,
+  "threshold_source": "validation_f1_sweep"
+}

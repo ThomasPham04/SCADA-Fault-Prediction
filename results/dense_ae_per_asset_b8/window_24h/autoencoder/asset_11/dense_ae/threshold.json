@@ -1,0 +1,6 @@
+{
+  "asset_id": 11,
+  "model_name": "dense_ae",
+  "selected_threshold": 0.6573267936706544,
+  "threshold_source": "validation_f1_sweep"
+}

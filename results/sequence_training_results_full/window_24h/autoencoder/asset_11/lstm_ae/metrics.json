@@ -1,0 +1,75 @@
+{
+  "model_name": "lstm_ae",
+  "asset_id": 11,
+  "train_shape": [
+    8289,
+    144,
+    88
+  ],
+  "val_normal_shape": [
+    116,
+    144,
+    88
+  ],
+  "val_labeled_shape": [
+    155,
+    144,
+    88
+  ],
+  "selected_threshold": 0.014241049997508526,
+  "validation_metrics": {
+    "threshold": 0.014241049997508526,
+    "accuracy": 0.6516129032258065,
+    "precision": 0.25806451612903225,
+    "recall": 0.20512820512820512,
+    "f1": 0.22857142857142856,
+    "pr_auc": 0.2930274381157225,
+    "roc_auc": 0.6167108753315649,
+    "confusion_matrix": [
+      [
+        93,
+        23
+      ],
+      [
+        31,
+        8
+      ]
+    ],
+    "support": 155,
+    "positive_count": 39,
+    "negative_count": 116
+  },
+  "test_metrics": {
+    "threshold": 0.014241049997508526,
+    "accuracy": 0.7806451612903226,
+    "precision": 0.46938775510204084,
+    "recall": 0.7419354838709677,
+    "f1": 0.575,
+    "pr_auc": 0.5606049414409929,
+    "roc_auc": 0.8400104058272633,
+    "confusion_matrix": [
+      [
+        98,
+        26
+      ],
+      [
+        8,
+        23
+      ]
+    ],
+    "support": 155,
+    "positive_count": 31,
+    "negative_count": 124
+  },
+  "summary": {
+    "model_name": "lstm_ae",
+    "asset_id": 11,
+    "threshold": 0.014241049997508526,
+    "accuracy": 0.7806451612903226,
+    "precision": 0.46938775510204084,
+    "recall": 0.7419354838709677,
+    "f1": 0.575,
+    "pr_auc": 0.5606049414409929,
+    "roc_auc": 0.8400104058272633
+  }
+}

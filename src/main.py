@@ -59,8 +59,11 @@ def run_prepare_care(args: argparse.Namespace) -> None:
         scaler_type=args.combined_scaler,
         validation_source=args.validation_source,
         prediction_val_ratio=args.prediction_val_ratio,
+        label_mode=args.label_mode,
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
+        skip_classifier=args.skip_classifier_export,
+        skip_per_asset_ae=args.skip_per_asset_ae,
     )
     pipeline.run()
 
@@ -99,8 +102,11 @@ def run_prepare(args: argparse.Namespace) -> None:
         scaler_type=args.combined_scaler,
         validation_source=args.validation_source,
         prediction_val_ratio=args.prediction_val_ratio,
+        label_mode=args.label_mode,
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
+        skip_classifier=args.skip_classifier_export,
+        skip_per_asset_ae=args.skip_per_asset_ae,
     )
     pipeline.run()
 
@@ -154,6 +160,21 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         autoencoder_bottleneck_units=args.ae_bottleneck_units,
     )
     SequenceModelTrainer(config).run()
+
+
+def add_label_mode_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--label-mode",
+        type=str,
+        default="future_horizon",
+        choices=["future_horizon", "last_timestamp", "detection"],
+        help=(
+            "Window label target. 'future_horizon' preserves the original "
+            "prediction task: any fault after the input window within H steps. "
+            "'last_timestamp'/'detection' labels each window by its final "
+            "input timestamp."
+        ),
+    )
 
 
 def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
@@ -239,6 +260,7 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
             "asset_id + sequence_id prediction segment assigned to validation."
         ),
     )
+    add_label_mode_flag(parser)
     parser.add_argument(
         "--stride",
         type=int,
@@ -252,6 +274,18 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--skip-classifier-export",
+        action="store_true",
+        default=False,
+        help="Skip exporting classifier windows (saves disk space when only AE training is needed).",
+    )
+    parser.add_argument(
+        "--skip-per-asset-ae",
+        action="store_true",
+        default=False,
+        help="Skip per-asset autoencoder export; only global AE data is written.",
+    )
 
 
 def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
@@ -587,7 +621,20 @@ def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
         choices=["train_tail", "prediction"],
     )
     parser.add_argument("--prediction-val-ratio", type=float, default=0.5)
+    add_label_mode_flag(parser)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--skip-classifier-export",
+        action="store_true",
+        default=False,
+        help="Skip exporting classifier windows.",
+    )
+    parser.add_argument(
+        "--skip-per-asset-ae",
+        action="store_true",
+        default=False,
+        help="Skip per-asset autoencoder export; only global AE data is written.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

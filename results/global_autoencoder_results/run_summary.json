@@ -1,0 +1,189 @@
+{
+  "exports_dir": "Dataset/processed/sequence_exports_prediction_val",
+  "results_dir": "results/global_autoencoder_results",
+  "windows_requested": [
+    24
+  ],
+  "windows_completed": [
+    {
+      "window_hours": 24,
+      "classifier_models": [],
+      "autoencoder_models": [
+        {
+          "model_name": "lstm_ae",
+          "scope": "global",
+          "source": "global_export",
+          "asset_ids": [
+            0,
+            10,
+            11,
+            13,
+            21
+          ],
+          "asset_filter": null,
+          "train_shape": [
+            180202,
+            144,
+            17
+          ],
+          "val_normal_shape": [
+            1862,
+            144,
+            17
+          ],
+          "val_labeled_shape": [
+            3437,
+            144,
+            17
+          ],
+          "selected_threshold": 0.007175097893923521,
+          "validation_metrics": {
+            "threshold": 0.007175097893923521,
+            "accuracy": 0.5693919115507711,
+            "precision": 0.48255813953488375,
+            "recall": 0.22802197802197802,
+            "f1": 0.30970149253731344,
+            "pr_auc": 0.4525749984262928,
+            "roc_auc": 0.4940658785938947,
+            "confusion_matrix": [
+              [
+                1625,
+                356
+              ],
+              [
+                1124,
+                332
+              ]
+            ],
+            "support": 3437,
+            "positive_count": 1456,
+            "negative_count": 1981
+          },
+          "test_metrics": {
+            "threshold": 0.007175097893923521,
+            "accuracy": 0.6583309101482989,
+            "precision": 0.46675031367628605,
+            "recall": 0.3315508021390374,
+            "f1": 0.3877019280875456,
+            "pr_auc": 0.3954975015499818,
+            "roc_auc": 0.5505467223967313,
+            "confusion_matrix": [
+              [
+                1892,
+                425
+              ],
+              [
+                750,
+                372
+              ]
+            ],
+            "support": 3439,
+            "positive_count": 1122,
+            "negative_count": 2317
+          },
+          "asset_summaries": [
+            {
+              "model_name": "lstm_ae",
+              "scope": "global",
+              "asset_id": 0,
+              "threshold": 0.007175097893923521,
+              "accuracy": 0.6476821192052981,
+              "precision": 0.3668639053254438,
+              "recall": 0.28054298642533937,
+              "f1": 0.31794871794871793,
+              "pr_auc": 0.39719333849469407,
+              "roc_auc": 0.5268612198552713
+            },
+            {
+              "model_name": "lstm_ae",
+              "scope": "global",
+              "asset_id": 10,
+              "threshold": 0.007175097893923521,
+              "accuracy": 0.6547497446373851,
+              "precision": 0.6590909090909091,
+              "recall": 0.41232227488151657,
+              "f1": 0.5072886297376094,
+              "pr_auc": 0.5452623806716658,
+              "roc_auc": 0.6114807661218273
+            },
+            {
+              "model_name": "lstm_ae",
+              "scope": "global",
+              "asset_id": 11,
+              "threshold": 0.007175097893923521,
+              "accuracy": 0.849025974025974,
+              "precision": 0.6060606060606061,
+              "recall": 0.6611570247933884,
+              "f1": 0.6324110671936759,
+              "pr_auc": 0.5546440797618185,
+              "roc_auc": 0.8669671925870274
+            },
+            {
+              "model_name": "lstm_ae",
+              "scope": "global",
+              "asset_id": 13,
+              "threshold": 0.007175097893923521,
+              "accuracy": 0.5543710021321961,
+              "precision": 0.27586206896551724,
+              "recall": 0.20382165605095542,
+              "f1": 0.23443223443223443,
+              "pr_auc": 0.32846436761749576,
+              "roc_auc": 0.42818063040992976
+            },
+            {
+              "model_name": "lstm_ae",
+              "scope": "global",
+              "asset_id": 21,
+              "threshold": 0.007175097893923521,
+              "accuracy": 0.5661290322580645,
+              "precision": 0.20689655172413793,
+              "recall": 0.11940298507462686,
+              "f1": 0.15141955835962145,
+              "pr_auc": 0.22749408596962561,
+              "roc_auc": 0.2582077678433608
+            }
+          ],
+          "summary": {
+            "model_name": "lstm_ae",
+            "scope": "global",
+            "source": "global_export",
+            "asset_count": 5,
+            "threshold": 0.007175097893923521,
+            "macro_accuracy": 0.6543915744517836,
+            "macro_precision": 0.4229548082333229,
+            "macro_recall": 0.33544938544516534,
+            "macro_f1": 0.3687000415343718,
+            "macro_pr_auc": 0.41061165050306,
+            "macro_roc_auc": 0.5383395153634833,
+            "pooled_accuracy": 0.6583309101482989,
+            "pooled_precision": 0.46675031367628605,
+            "pooled_recall": 0.3315508021390374,
+            "pooled_f1": 0.3877019280875456,
+            "pooled_pr_auc": 0.3954975015499818,
+            "pooled_roc_auc": 0.5505467223967313
+          }
+        }
+      ],
+      "best_classifier": null,
+      "best_autoencoder": {
+        "model_name": "lstm_ae",
+        "scope": "global",
+        "source": "global_export",
+        "asset_count": 5,
+        "threshold": 0.007175097893923521,
+        "macro_accuracy": 0.6543915744517836,
+        "macro_precision": 0.4229548082333229,
+        "macro_recall": 0.33544938544516534,
+        "macro_f1": 0.3687000415343718,
+        "macro_pr_auc": 0.41061165050306,
+        "macro_roc_auc": 0.5383395153634833,
+        "pooled_accuracy": 0.6583309101482989,
+        "pooled_precision": 0.46675031367628605,
+        "pooled_recall": 0.3315508021390374,
+        "pooled_f1": 0.3877019280875456,
+        "pooled_pr_auc": 0.3954975015499818,
+        "pooled_roc_auc": 0.5505467223967313
+      }
+    }
+  ]
+}

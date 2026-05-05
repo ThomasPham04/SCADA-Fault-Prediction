@@ -1,0 +1,154 @@
+{
+  "model_name": "lstm_ae",
+  "scope": "global",
+  "source": "global_export",
+  "asset_ids": [
+    0,
+    10,
+    11,
+    13,
+    21
+  ],
+  "asset_filter": null,
+  "train_shape": [
+    20699,
+    144,
+    88
+  ],
+  "val_normal_shape": [
+    3472,
+    144,
+    88
+  ],
+  "val_labeled_shape": [
+    4187,
+    144,
+    88
+  ],
+  "selected_threshold": 0.03050688819959758,
+  "validation_metrics": {
+    "threshold": 0.03050688819959758,
+    "accuracy": 0.9878194411272988,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "pr_auc": null,
+    "roc_auc": null,
+    "confusion_matrix": [
+      [
+        4136,
+        51
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "support": 4187,
+    "positive_count": 0,
+    "negative_count": 4187
+  },
+  "test_metrics": {
+    "threshold": 0.03050688819959758,
+    "accuracy": 0.6220880069025022,
+    "precision": 0.7027027027027027,
+    "recall": 0.05739514348785872,
+    "f1": 0.10612244897959183,
+    "pr_auc": 0.4685420491682653,
+    "roc_auc": 0.5525767780425117,
+    "confusion_matrix": [
+      [
+        695,
+        11
+      ],
+      [
+        427,
+        26
+      ]
+    ],
+    "support": 1159,
+    "positive_count": 453,
+    "negative_count": 706
+  },
+  "asset_summaries": [
+    {
+      "model_name": "lstm_ae",
+      "scope": "global",
+      "asset_id": 0,
+      "threshold": 0.03050688819959758,
+      "accuracy": 0.6141732283464567,
+      "precision": 0.8,
+      "recall": 0.039603960396039604,
+      "f1": 0.07547169811320754,
+      "pr_auc": 0.4209568173265733,
+      "roc_auc": 0.48495437779072026
+    },
+    {
+      "model_name": "lstm_ae",
+      "scope": "global",
+      "asset_id": 10,
+      "threshold": 0.03050688819959758,
+      "accuracy": 0.5555555555555556,
+      "precision": 0.7857142857142857,
+      "recall": 0.1375,
+      "f1": 0.23404255319148937,
+      "pr_auc": 0.6314869425051148,
+      "roc_auc": 0.5983993902439023
+    },
+    {
+      "model_name": "lstm_ae",
+      "scope": "global",
+      "asset_id": 11,
+      "threshold": 0.03050688819959758,
+      "accuracy": 0.7729468599033816,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.4743607167450034,
+      "roc_auc": 0.7929521276595745
+    },
+    {
+      "model_name": "lstm_ae",
+      "scope": "global",
+      "asset_id": 13,
+      "threshold": 0.03050688819959758,
+      "accuracy": 0.676829268292683,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.30822348714021425,
+      "roc_auc": 0.44144917582417587
+    },
+    {
+      "model_name": "lstm_ae",
+      "scope": "global",
+      "asset_id": 21,
+      "threshold": 0.03050688819959758,
+      "accuracy": 0.5428571428571428,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "pr_auc": 0.4031390360112215,
+      "roc_auc": 0.47578347578347574
+    }
+  ],
+  "summary": {
+    "model_name": "lstm_ae",
+    "scope": "global",
+    "source": "global_export",
+    "asset_count": 5,
+    "threshold": 0.03050688819959758,
+    "macro_accuracy": 0.6324724109910439,
+    "macro_precision": 0.31714285714285717,
+    "macro_recall": 0.035420792079207924,
+    "macro_f1": 0.06190285026093938,
+    "macro_pr_auc": 0.4476333999456255,
+    "macro_roc_auc": 0.5587077094603696,
+    "pooled_accuracy": 0.6220880069025022,
+    "pooled_precision": 0.7027027027027027,
+    "pooled_recall": 0.05739514348785872,
+    "pooled_f1": 0.10612244897959183,
+    "pooled_pr_auc": 0.4685420491682653,
+    "pooled_roc_auc": 0.5525767780425117
+  }
+}

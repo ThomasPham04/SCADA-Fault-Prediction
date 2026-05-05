@@ -1,0 +1,2 @@
+model_name,scope,source,asset_count,threshold,macro_accuracy,macro_precision,macro_recall,macro_f1,macro_pr_auc,macro_roc_auc,pooled_accuracy,pooled_precision,pooled_recall,pooled_f1,pooled_pr_auc,pooled_roc_auc
+small_lstm_ae,global,global_export,5,0.019480808787047863,0.6189438596406027,0.3788809756091436,0.3818787273726666,0.3722035105742274,0.3763099536718778,0.5308319113739192,0.6280895609188718,0.4238603297769156,0.3894830659536542,0.40594519275429636,0.3976543928230731,0.5352786541697151

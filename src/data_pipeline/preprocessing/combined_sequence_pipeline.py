@@ -39,6 +39,20 @@ DEFAULT_PROBE_BATCH_SIZE = 256
 DEFAULT_PROBE_MAX_TRAIN_WINDOWS = 60_000
 DEFAULT_VALIDATION_SOURCE = "train_tail"
 VALIDATION_SOURCES = {"train_tail", "prediction"}
+LABEL_MODE_FUTURE_HORIZON = "future_horizon"
+LABEL_MODE_LAST_TIMESTAMP = "last_timestamp"
+LABEL_MODE_ALIASES = {
+    "future_horizon": LABEL_MODE_FUTURE_HORIZON,
+    "prediction": LABEL_MODE_FUTURE_HORIZON,
+    "horizon": LABEL_MODE_FUTURE_HORIZON,
+    "last_timestamp": LABEL_MODE_LAST_TIMESTAMP,
+    "detection": LABEL_MODE_LAST_TIMESTAMP,
+    "last": LABEL_MODE_LAST_TIMESTAMP,
+}
+LABEL_DEFINITIONS = {
+    LABEL_MODE_FUTURE_HORIZON: "future_horizon_any_positive_after_input_window",
+    LABEL_MODE_LAST_TIMESTAMP: "last_timestamp_label_at_window_end",
+}
 
 METADATA_COLUMNS = {
     "time_stamp",
@@ -111,11 +125,14 @@ class CombinedSequencePipeline:
         scaler_type: str = "minmax",
         validation_source: str = DEFAULT_VALIDATION_SOURCE,
         prediction_val_ratio: float = 0.5,
+        label_mode: str = LABEL_MODE_FUTURE_HORIZON,
         run_window_search: bool = True,
         probe_epochs: int = DEFAULT_PROBE_EPOCHS,
         probe_batch_size: int = DEFAULT_PROBE_BATCH_SIZE,
         probe_max_train_windows: int = DEFAULT_PROBE_MAX_TRAIN_WINDOWS,
         random_seed: int = 42,
+        skip_classifier: bool = False,
+        skip_per_asset_ae: bool = False,
     ) -> None:
         self.csv_path = Path(csv_path)
         self.feature_file = Path(feature_file) if feature_file else None
@@ -134,11 +151,14 @@ class CombinedSequencePipeline:
         self.scaler_type = scaler_type.lower()
         self.validation_source = validation_source.lower()
         self.prediction_val_ratio = float(prediction_val_ratio)
+        self.label_mode = self._normalize_label_mode(label_mode)
         self.run_window_search = run_window_search
         self.probe_epochs = probe_epochs
         self.probe_batch_size = probe_batch_size
         self.probe_max_train_windows = probe_max_train_windows
         self.random_seed = random_seed
+        self.skip_classifier = skip_classifier
+        self.skip_per_asset_ae = skip_per_asset_ae
 
         if self.scaler_type not in ("minmax", "standard"):
             raise ValueError("scaler_type must be 'minmax' or 'standard'")
@@ -152,6 +172,24 @@ class CombinedSequencePipeline:
             raise ValueError("prediction_val_ratio must be between 0 and 1.")
         if self.prediction_horizon_steps <= 0:
             raise ValueError("prediction_horizon_steps must be positive")
+
+    @staticmethod
+    def _normalize_label_mode(label_mode: str) -> str:
+        normalized = str(label_mode).strip().lower()
+        if normalized not in LABEL_MODE_ALIASES:
+            raise ValueError(
+                "label_mode must be one of "
+                f"{sorted(LABEL_MODE_ALIASES)}"
+            )
+        return LABEL_MODE_ALIASES[normalized]
+
+    @property
+    def label_definition(self) -> str:
+        return LABEL_DEFINITIONS[self.label_mode]
+
+    @property
+    def uses_future_horizon(self) -> bool:
+        return self.label_mode == LABEL_MODE_FUTURE_HORIZON
 
     def window_steps_from_hours(self, window_hours: int) -> int:
         return int((window_hours * 60) / self.time_resolution_minutes)
@@ -429,8 +467,9 @@ class CombinedSequencePipeline:
 
         for _, group in df.groupby(list(group_cols), sort=False):
             group = group.sort_values("time_stamp", kind="mergesort").reset_index(drop=True)
-            horizon_steps = self.prediction_horizon_steps
-            if len(group) < window_steps + horizon_steps:
+            horizon_steps = self.prediction_horizon_steps if self.uses_future_horizon else 0
+            required_steps = window_steps + horizon_steps
+            if len(group) < required_steps:
                 continue
 
             features = group[feature_cols].to_numpy(dtype=np.float32)
@@ -438,20 +477,29 @@ class CombinedSequencePipeline:
             statuses = group["status_type_id"].to_numpy(dtype=int)
             timestamps = group["time_stamp"].astype(str).to_numpy()
 
-            max_start = len(group) - window_steps - horizon_steps + 1
+            max_start = len(group) - required_steps + 1
             for start in range(0, max_start, self.stride_steps):
                 end = start + window_steps
-                horizon_end = end + horizon_steps
-                future_labels = labels[end:horizon_end]
-                target_label = int(future_labels.max())
-                positive_offsets = np.flatnonzero(future_labels == 1)
-                first_future_anomaly_time = (
-                    timestamps[end + int(positive_offsets[0])]
-                    if len(positive_offsets)
-                    else ""
-                )
+                last_input_time = timestamps[end - 1]
                 last_input_label = int(labels[end - 1])
                 last_input_status = int(statuses[end - 1])
+                if self.uses_future_horizon:
+                    horizon_end = end + horizon_steps
+                    future_labels = labels[end:horizon_end]
+                    target_label = int(future_labels.max())
+                    positive_offsets = np.flatnonzero(future_labels == 1)
+                    first_future_anomaly_time = (
+                        timestamps[end + int(positive_offsets[0])]
+                        if len(positive_offsets)
+                        else ""
+                    )
+                    horizon_start_time = timestamps[end]
+                    horizon_end_time = timestamps[horizon_end - 1]
+                else:
+                    target_label = last_input_label
+                    first_future_anomaly_time = ""
+                    horizon_start_time = last_input_time
+                    horizon_end_time = last_input_time
                 X_list.append(features[start:end])
                 y_list.append(target_label)
                 meta_rows.append(
@@ -460,9 +508,9 @@ class CombinedSequencePipeline:
                         "asset_id": group.iloc[end - 1]["asset_id"],
                         "sequence_id": group.iloc[end - 1]["sequence_id"],
                         "start_time": timestamps[start],
-                        "end_time": timestamps[end - 1],
-                        "horizon_start_time": timestamps[end],
-                        "horizon_end_time": timestamps[horizon_end - 1],
+                        "end_time": last_input_time,
+                        "horizon_start_time": horizon_start_time,
+                        "horizon_end_time": horizon_end_time,
                         "target_label": target_label,
                         "future_label": target_label,
                         "first_future_anomaly_time": first_future_anomaly_time,
@@ -696,6 +744,8 @@ class CombinedSequencePipeline:
                     "window_hours": int(window_hours),
                     "window_steps": int(window_steps),
                     "prediction_horizon_steps": int(self.prediction_horizon_steps),
+                    "label_mode": self.label_mode,
+                    "label_definition": self.label_definition,
                     "train_windows": int(len(X_train)),
                     "probe_train_windows": int(sampled_train),
                     "val_windows": int(len(X_val)),
@@ -776,7 +826,8 @@ class CombinedSequencePipeline:
                 "window_steps": int(window_steps),
                 "stride_steps": int(self.stride_steps),
                 "prediction_horizon_steps": int(self.prediction_horizon_steps),
-                "label_definition": "future_horizon_any_positive_after_input_window",
+                "label_mode": self.label_mode,
+                "label_definition": self.label_definition,
                 "validation_source": self.validation_source,
                 "prediction_val_ratio": self.prediction_val_ratio,
                 "scaler_type": self.scaler_type,
@@ -893,7 +944,8 @@ class CombinedSequencePipeline:
                 "window_steps": int(window_steps),
                 "stride_steps": int(self.stride_steps),
                 "prediction_horizon_steps": int(self.prediction_horizon_steps),
-                "label_definition": "future_horizon_any_positive_after_input_window",
+                "label_mode": self.label_mode,
+                "label_definition": self.label_definition,
                 "validation_source": self.validation_source,
                 "prediction_val_ratio": self.prediction_val_ratio,
                 "scaler_type": self.scaler_type,
@@ -908,6 +960,10 @@ class CombinedSequencePipeline:
             "val_windows": int(len(X_val_global)),
             "test_sequences": int(saved_global_test_sequences),
         }
+
+        if self.skip_per_asset_ae:
+            print("  [skip] per-asset autoencoder export skipped (--skip-per-asset-ae)")
+            return summary
 
         for asset_id in scalers.keys():
             asset_dir = autoencoder_dir / f"asset_{asset_id}"
@@ -980,7 +1036,8 @@ class CombinedSequencePipeline:
                     "window_steps": int(window_steps),
                     "stride_steps": int(self.stride_steps),
                     "prediction_horizon_steps": int(self.prediction_horizon_steps),
-                    "label_definition": "future_horizon_any_positive_after_input_window",
+                    "label_mode": self.label_mode,
+                    "label_definition": self.label_definition,
                     "validation_source": self.validation_source,
                     "prediction_val_ratio": self.prediction_val_ratio,
                     "scaler_type": self.scaler_type,
@@ -1006,6 +1063,8 @@ class CombinedSequencePipeline:
                     "window_hours": int(window_hours),
                     "window_steps": int(self.window_steps_from_hours(window_hours)),
                     "prediction_horizon_steps": int(self.prediction_horizon_steps),
+                    "label_mode": self.label_mode,
+                    "label_definition": self.label_definition,
                     "usable": True,
                     "note": "selected_by_user",
                 }
@@ -1020,6 +1079,8 @@ class CombinedSequencePipeline:
                     "window_hours": first_window,
                     "window_steps": int(self.window_steps_from_hours(first_window)),
                     "prediction_horizon_steps": int(self.prediction_horizon_steps),
+                    "label_mode": self.label_mode,
+                    "label_definition": self.label_definition,
                     "usable": True,
                     "note": "window_search_skipped",
                 }
@@ -1054,7 +1115,11 @@ class CombinedSequencePipeline:
         print(f"Validation source: {self.validation_source}")
         if self.validation_source == "prediction":
             print(f"Prediction val % : {self.prediction_val_ratio:.2f}")
-        print(f"Future horizon   : {self.prediction_horizon_steps} steps")
+        print(f"Label mode       : {self.label_mode}")
+        if self.uses_future_horizon:
+            print(f"Future horizon   : {self.prediction_horizon_steps} steps")
+        else:
+            print("Detection label  : last timestamp in each window")
 
         train_df, val_df, test_df = self.split_train_val_test_by_sequence(prepared_df)
         split_summary = self.summarize_split_rows(train_df, val_df, test_df)
@@ -1064,6 +1129,8 @@ class CombinedSequencePipeline:
                 "validation_source": self.validation_source,
                 "val_ratio": self.val_ratio,
                 "prediction_val_ratio": self.prediction_val_ratio,
+                "label_mode": self.label_mode,
+                "label_definition": self.label_definition,
                 "splits": split_summary,
             },
         )
@@ -1088,7 +1155,8 @@ class CombinedSequencePipeline:
                 "best_windows_hours": best_windows,
                 "top_k": int(len(best_windows)),
                 "prediction_horizon_steps": int(self.prediction_horizon_steps),
-                "label_definition": "future_horizon_any_positive_after_input_window",
+                "label_mode": self.label_mode,
+                "label_definition": self.label_definition,
                 "validation_source": self.validation_source,
                 "prediction_val_ratio": self.prediction_val_ratio,
                 "ranked_results": results_df.to_dict(orient="records"),
@@ -1099,15 +1167,19 @@ class CombinedSequencePipeline:
         for window_hours in best_windows:
             print(f"\nExporting datasets for {window_hours}h window")
             window_dir = self.output_dir / f"window_{window_hours}h"
-            classifier_summary = self.export_classifier_data(
-                train_df_sc,
-                val_df_sc,
-                test_df_sc,
-                feature_cols,
-                window_hours,
-                window_dir,
-                scalers,
-            )
+            if self.skip_classifier:
+                print("  [skip] classifier export skipped (--skip-classifier-export)")
+                classifier_summary = {}
+            else:
+                classifier_summary = self.export_classifier_data(
+                    train_df_sc,
+                    val_df_sc,
+                    test_df_sc,
+                    feature_cols,
+                    window_hours,
+                    window_dir,
+                    scalers,
+                )
             autoencoder_summary = self.export_autoencoder_data(
                 train_df_sc,
                 val_df_sc,
@@ -1130,7 +1202,8 @@ class CombinedSequencePipeline:
             "feature_file": str(self.feature_file) if self.feature_file else None,
             "output_dir": str(self.output_dir),
             "prediction_horizon_steps": int(self.prediction_horizon_steps),
-            "label_definition": "future_horizon_any_positive_after_input_window",
+            "label_mode": self.label_mode,
+            "label_definition": self.label_definition,
             "validation_source": self.validation_source,
             "val_ratio": self.val_ratio,
             "prediction_val_ratio": self.prediction_val_ratio,
