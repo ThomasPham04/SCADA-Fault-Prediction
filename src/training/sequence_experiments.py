@@ -16,13 +16,19 @@ from training.sequence_io import (
     load_autoencoder_global_bundle,
     load_autoencoder_test_sequences,
     load_classifier_val_slice,
+    load_classifier_val_slice_with_meta,
 )
 from training.sequence_metrics import (
+    aggregate_event_scores,
     compute_class_weights,
+    compute_false_alarm_stats,
+    compute_lead_time_minutes,
     evaluate_at_threshold,
+    evaluate_event_level_from_sequences,
     pick_best_threshold,
     safe_mean,
     sweep_thresholds,
+    sweep_thresholds_event_level,
 )
 from training.sequence_models import (
     autoencoder_callbacks,
@@ -64,8 +70,14 @@ def _select_ae_threshold(
     y_val_labeled: np.ndarray,
     batch_size: int,
     identifier: str,
+    val_meta: pd.DataFrame | None = None,
 ) -> tuple:
-    """Returns (best_threshold, threshold_source, sweep_df)."""
+    """Returns (best_threshold, threshold_source, sweep_df).
+
+    When val_meta with sequence_id is provided and the val set contains faults,
+    the threshold is selected to maximise event-level F1 (one prediction per
+    sequence via max-score aggregation) instead of window-level F1.
+    """
     no_fault_val = (
         len(val_scores) == 0
         or len(y_val_labeled) == 0
@@ -82,10 +94,19 @@ def _select_ae_threshold(
         )
         if len(threshold_candidates) == 0:
             raise RuntimeError(f"Threshold sweep candidates are empty for {identifier}.")
-        sweep_df = sweep_thresholds(y_val_labeled, val_scores, threshold_candidates)
+        use_event_level = (
+            val_meta is not None
+            and "sequence_id" in val_meta.columns
+            and "asset_id" in val_meta.columns
+        )
+        if use_event_level:
+            sweep_df = sweep_thresholds_event_level(val_meta, val_scores, threshold_candidates)
+            threshold_source = "event_level_f1_sweep"
+        else:
+            sweep_df = sweep_thresholds(y_val_labeled, val_scores, threshold_candidates)
+            threshold_source = "validation_f1_sweep"
         best_row = pick_best_threshold(sweep_df)
         best_threshold = float(best_row["threshold"])
-        threshold_source = "validation_f1_sweep"
     return best_threshold, threshold_source, sweep_df
 
 
@@ -157,7 +178,15 @@ def run_classifier_experiment(
     test_scores = best_model.predict(X_test, batch_size=batch_size, verbose=0).reshape(-1)
 
     threshold_grid = np.arange(0.10, 0.91, 0.05)
-    sweep_df = sweep_thresholds(y_val, val_scores, threshold_grid)
+    val_meta = bundle["val_meta"]
+    has_seq_col = "sequence_id" in val_meta.columns and "asset_id" in val_meta.columns
+    has_pos_val = int(y_val.max()) > 0 if len(y_val) > 0 else False
+    if has_seq_col and has_pos_val:
+        sweep_df = sweep_thresholds_event_level(val_meta, val_scores, threshold_grid)
+        threshold_source = "event_level_f1_sweep"
+    else:
+        sweep_df = sweep_thresholds(y_val, val_scores, threshold_grid)
+        threshold_source = "validation_f1_sweep"
     best_row = pick_best_threshold(sweep_df)
     best_threshold = float(best_row["threshold"])
 
@@ -172,13 +201,30 @@ def run_classifier_experiment(
     val_metrics = evaluate_at_threshold(y_val, val_scores, best_threshold)
     test_metrics = evaluate_at_threshold(y_test, test_scores, best_threshold)
 
+    # Event-level evaluation on test set
+    test_meta = bundle["test_meta"]
+    event_test_metrics: dict | None = None
+    event_test_df: pd.DataFrame | None = None
+    if "sequence_id" in test_meta.columns and "asset_id" in test_meta.columns:
+        event_test_df = aggregate_event_scores(test_meta, test_scores)
+        event_test_metrics = evaluate_at_threshold(
+            event_test_df["true_label"].to_numpy(dtype=np.int8),
+            event_test_df["score"].to_numpy(dtype=np.float32),
+            best_threshold,
+        )
+
     if save_predictions:
-        build_prediction_frame(bundle["val_meta"], val_scores, best_threshold).to_csv(
+        build_prediction_frame(val_meta, val_scores, best_threshold).to_csv(
             output_dir / "val_predictions.csv", index=False
         )
-        build_prediction_frame(bundle["test_meta"], test_scores, best_threshold).to_csv(
+        build_prediction_frame(test_meta, test_scores, best_threshold).to_csv(
             output_dir / "test_predictions.csv", index=False
         )
+        if event_test_df is not None:
+            event_test_df["predicted_label"] = (
+                event_test_df["score"] >= best_threshold
+            ).astype(np.int8)
+            event_test_df.to_csv(output_dir / "test_event_predictions.csv", index=False)
 
     save_confusion_matrix_plot(
         test_metrics["confusion_matrix"],
@@ -202,6 +248,7 @@ def run_classifier_experiment(
     summary = {
         "model_name": model_name,
         "threshold": best_threshold,
+        "threshold_source": threshold_source,
         "accuracy": test_metrics["accuracy"],
         "precision": test_metrics["precision"],
         "recall": test_metrics["recall"],
@@ -209,6 +256,11 @@ def run_classifier_experiment(
         "pr_auc": test_metrics["pr_auc"],
         "roc_auc": test_metrics["roc_auc"],
     }
+    if event_test_metrics is not None:
+        summary["event_precision"] = event_test_metrics["precision"]
+        summary["event_recall"] = event_test_metrics["recall"]
+        summary["event_f1"] = event_test_metrics["f1"]
+        summary["event_count"] = event_test_metrics["support"]
 
     payload = {
         "model_name": model_name,
@@ -221,8 +273,10 @@ def run_classifier_experiment(
             "l2_strength": float(l2_strength),
         },
         "selected_threshold": best_threshold,
+        "threshold_source": threshold_source,
         "validation_metrics": val_metrics,
         "test_metrics": test_metrics,
+        "event_test_metrics": event_test_metrics,
         "summary": summary,
     }
     save_json(metrics_path, payload)
@@ -277,7 +331,9 @@ def run_autoencoder_experiment(
     X_val_normal = asset_bundle["X_val_normal"]
     input_shape = (int(X_train.shape[1]), int(X_train.shape[2]))
 
-    X_val_labeled, y_val_labeled = load_asset_val_classifier_slice(classifier_bundle, asset_id)
+    X_val_labeled, y_val_labeled, val_meta = load_classifier_val_slice_with_meta(
+        classifier_bundle, asset_filter=[asset_id]
+    )
     # Empty labeled val is fine — threshold selection will use 99th-percentile fallback.
     has_labeled_val = len(X_val_labeled) > 0
 
@@ -347,7 +403,8 @@ def run_autoencoder_experiment(
         sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
     else:
         best_threshold, threshold_source, sweep_df = _select_ae_threshold(
-            best_model, X_val_normal, val_scores, y_val_labeled, batch_size, f"asset {asset_id}"
+            best_model, X_val_normal, val_scores, y_val_labeled, batch_size,
+            f"asset {asset_id}", val_meta=val_meta,
         )
 
     save_threshold_csv(sweep_df, output_dir / "threshold_sweep_val.csv")
@@ -382,13 +439,47 @@ def run_autoencoder_experiment(
 
     test_metrics = evaluate_at_threshold(flat_window_labels, flat_window_scores, best_threshold)
 
+    # Event-level evaluation
+    event_test_metrics = evaluate_event_level_from_sequences(
+        test_sequences, all_window_scores, best_threshold
+    )
+    lead_time_minutes = compute_lead_time_minutes(
+        test_sequences, all_window_scores, best_threshold
+    )
+    false_alarm_stats = compute_false_alarm_stats(
+        test_sequences, all_window_scores, best_threshold
+    )
+
+    asset_ids_per_window = np.concatenate([
+        np.full(len(s["y"]), int(s["asset_id"]), dtype=np.int64)
+        for s in test_sequences
+    ])
+    sequence_ids_per_window = np.concatenate([
+        np.full(len(s["y"]), int(s["sequence_id"]), dtype=np.int64)
+        for s in test_sequences
+    ])
     pd.DataFrame(
         {
+            "asset_id": asset_ids_per_window,
+            "sequence_id": sequence_ids_per_window,
             "true_label": flat_window_labels,
             "score": flat_window_scores,
             "predicted_label": flat_window_pred,
         }
     ).to_csv(output_dir / "test_window_predictions.csv", index=False)
+
+    # Event-level predictions CSV
+    event_rows = [
+        {
+            "asset_id": int(s["asset_id"]),
+            "sequence_id": int(s["sequence_id"]),
+            "event_true_label": int(np.asarray(s["y"]).max()),
+            "event_score": float(np.asarray(sc).max()),
+            "event_predicted_label": int(np.asarray(sc).max() >= best_threshold),
+        }
+        for s, sc in zip(test_sequences, all_window_scores)
+    ]
+    pd.DataFrame(event_rows).to_csv(output_dir / "test_event_predictions.csv", index=False)
 
     save_confusion_matrix_plot(
         test_metrics["confusion_matrix"],
@@ -423,12 +514,20 @@ def run_autoencoder_experiment(
         "model_name": model_name,
         "asset_id": asset_id,
         "threshold": best_threshold,
+        "threshold_source": threshold_source,
         "accuracy": test_metrics["accuracy"],
         "precision": test_metrics["precision"],
         "recall": test_metrics["recall"],
         "f1": test_metrics["f1"],
         "pr_auc": test_metrics["pr_auc"],
         "roc_auc": test_metrics["roc_auc"],
+        "event_precision": event_test_metrics["precision"],
+        "event_recall": event_test_metrics["recall"],
+        "event_f1": event_test_metrics["f1"],
+        "event_count": event_test_metrics["support"],
+        "lead_time_minutes": lead_time_minutes,
+        "false_alarm_count": false_alarm_stats["false_alarm_count"],
+        "false_alarm_rate": false_alarm_stats["false_alarm_rate"],
     }
 
     payload = {
@@ -438,8 +537,12 @@ def run_autoencoder_experiment(
         "val_normal_shape": list(X_val_normal.shape),
         "val_labeled_shape": list(X_val_labeled.shape),
         "selected_threshold": best_threshold,
+        "threshold_source": threshold_source,
         "validation_metrics": val_metrics,
         "test_metrics": test_metrics,
+        "event_test_metrics": event_test_metrics,
+        "lead_time_minutes": lead_time_minutes,
+        "false_alarm_stats": false_alarm_stats,
         "summary": summary,
     }
     save_json(metrics_path, payload)
@@ -501,7 +604,9 @@ def run_global_autoencoder_experiment(
         raise RuntimeError("Global autoencoder has no normal validation windows.")
 
     input_shape = (int(X_train.shape[1]), int(X_train.shape[2]))
-    X_val_labeled, y_val_labeled = load_classifier_val_slice(classifier_bundle, asset_filter=asset_filter)
+    X_val_labeled, y_val_labeled, val_meta = load_classifier_val_slice_with_meta(
+        classifier_bundle, asset_filter=asset_filter
+    )
     has_labeled_val = len(X_val_labeled) > 0
 
     model = build_autoencoder_model(
@@ -569,7 +674,8 @@ def run_global_autoencoder_experiment(
         sweep_df = pd.DataFrame(columns=["threshold", "precision", "recall", "f1", "accuracy"])
     else:
         best_threshold, threshold_source, sweep_df = _select_ae_threshold(
-            best_model, X_val_normal, val_scores, y_val_labeled, batch_size, "global autoencoder"
+            best_model, X_val_normal, val_scores, y_val_labeled, batch_size,
+            "global autoencoder", val_meta=val_meta,
         )
 
     save_threshold_csv(sweep_df, output_dir / "threshold_sweep_val.csv")
@@ -590,11 +696,13 @@ def run_global_autoencoder_experiment(
         raise RuntimeError("No test sequences found for global autoencoder.")
 
     prediction_frames = []
+    all_seq_scores = []
     for sequence_data in test_sequences:
         if use_adaptive_threshold and threshold_nn is not None:
             sequence_scores = adaptive_reconstruction_scores(best_model, threshold_nn, sequence_data["X"], batch_size)
         else:
             sequence_scores = reconstruction_scores(best_model, sequence_data["X"], batch_size=batch_size)
+        all_seq_scores.append(sequence_scores)
         prediction_frames.append(
             pd.DataFrame(
                 {
@@ -615,6 +723,21 @@ def run_global_autoencoder_experiment(
 
     test_metrics = evaluate_at_threshold(flat_window_labels, flat_window_scores, best_threshold)
     pred_df.to_csv(output_dir / "test_window_predictions.csv", index=False)
+
+    # Event-level evaluation
+    event_df = (
+        pred_df.groupby(["asset_id", "sequence_id"], as_index=False, sort=False)
+        .agg(event_score=("score", "max"), event_true_label=("true_label", "max"))
+    )
+    event_df["event_predicted_label"] = (event_df["event_score"] >= best_threshold).astype(np.int8)
+    event_df.to_csv(output_dir / "test_event_predictions.csv", index=False)
+    event_test_metrics = evaluate_at_threshold(
+        event_df["event_true_label"].to_numpy(dtype=np.int8),
+        event_df["event_score"].to_numpy(dtype=np.float32),
+        best_threshold,
+    )
+    lead_time_minutes = compute_lead_time_minutes(test_sequences, all_seq_scores, best_threshold)
+    false_alarm_stats = compute_false_alarm_stats(test_sequences, all_seq_scores, best_threshold)
 
     asset_rows = []
     for asset_id, asset_df in pred_df.groupby("asset_id", sort=False):
@@ -647,6 +770,7 @@ def run_global_autoencoder_experiment(
         "source": global_bundle["source"],
         "asset_count": int(len(asset_summary_df)),
         "threshold": best_threshold,
+        "threshold_source": threshold_source,
         "macro_accuracy": float(asset_summary_df["accuracy"].mean()),
         "macro_precision": float(asset_summary_df["precision"].mean()),
         "macro_recall": float(asset_summary_df["recall"].mean()),
@@ -659,6 +783,13 @@ def run_global_autoencoder_experiment(
         "pooled_f1": test_metrics["f1"],
         "pooled_pr_auc": test_metrics["pr_auc"],
         "pooled_roc_auc": test_metrics["roc_auc"],
+        "event_precision": event_test_metrics["precision"],
+        "event_recall": event_test_metrics["recall"],
+        "event_f1": event_test_metrics["f1"],
+        "event_count": event_test_metrics["support"],
+        "lead_time_minutes": lead_time_minutes,
+        "false_alarm_count": false_alarm_stats["false_alarm_count"],
+        "false_alarm_rate": false_alarm_stats["false_alarm_rate"],
     }
 
     save_confusion_matrix_plot(
@@ -691,7 +822,9 @@ def run_global_autoencoder_experiment(
             "model_name": model_name,
             "selected_threshold": best_threshold,
             "threshold_source": threshold_source,
-            "threshold_candidates": sweep_df["threshold"].tolist() if threshold_source == "validation_f1_sweep" else [],
+            "threshold_candidates": sweep_df["threshold"].tolist() if threshold_source in (
+                "validation_f1_sweep", "event_level_f1_sweep"
+            ) else [],
             "asset_filter": to_int_list(asset_filter),
         },
     )
@@ -706,8 +839,12 @@ def run_global_autoencoder_experiment(
         "val_normal_shape": list(X_val_normal.shape),
         "val_labeled_shape": list(X_val_labeled.shape),
         "selected_threshold": best_threshold,
+        "threshold_source": threshold_source,
         "validation_metrics": val_metrics,
         "test_metrics": test_metrics,
+        "event_test_metrics": event_test_metrics,
+        "lead_time_minutes": lead_time_minutes,
+        "false_alarm_stats": false_alarm_stats,
         "asset_summaries": asset_summary_df.to_dict(orient="records"),
         "summary": summary,
     }

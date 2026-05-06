@@ -167,6 +167,112 @@ def autoencoder_comparison_frame(rows: list) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def aggregate_event_scores(meta_df: pd.DataFrame, scores: np.ndarray) -> pd.DataFrame:
+    """Group window-level scores to one row per (asset_id, sequence_id) event."""
+    label_col = get_label_column(meta_df)
+    df = meta_df[["asset_id", "sequence_id", label_col]].copy()
+    df["score"] = np.asarray(scores, dtype=float)
+    return (
+        df.groupby(["asset_id", "sequence_id"], as_index=False, sort=False)
+        .agg(score=("score", "max"), true_label=(label_col, "max"))
+    )
+
+
+def sweep_thresholds_event_level(
+    val_meta: pd.DataFrame, val_scores: np.ndarray, thresholds
+) -> pd.DataFrame:
+    """Threshold sweep where each sequence counts as one prediction (max-score aggregation)."""
+    event_df = aggregate_event_scores(val_meta, val_scores)
+    return sweep_thresholds(
+        event_df["true_label"].to_numpy(dtype=int),
+        event_df["score"].to_numpy(dtype=float),
+        thresholds,
+    )
+
+
+def evaluate_event_level_from_sequences(
+    test_sequences: list,
+    all_window_scores: list,
+    threshold: float,
+) -> dict:
+    """Event-level evaluation: flag a sequence as anomaly if max window score >= threshold."""
+    event_true = []
+    event_scores = []
+    for seq, scores in zip(test_sequences, all_window_scores):
+        event_true.append(int(np.asarray(seq["y"]).max()))
+        event_scores.append(float(np.asarray(scores).max()))
+    return evaluate_at_threshold(
+        np.array(event_true, dtype=np.int8),
+        np.array(event_scores, dtype=np.float32),
+        threshold,
+    )
+
+
+def compute_lead_time_minutes(
+    test_sequences: list,
+    all_window_scores: list,
+    threshold: float,
+) -> float | None:
+    """
+    Mean lead time (minutes) for correctly detected anomaly events.
+
+    Lead time = first_future_anomaly_time − end_time of the first flagged window.
+    Only sequences that are positive AND are detected contribute.
+    """
+    import pandas as _pd
+
+    lead_times = []
+    for seq, scores in zip(test_sequences, all_window_scores):
+        y = np.asarray(seq["y"])
+        if int(y.max()) == 0:
+            continue
+        scores = np.asarray(scores)
+        flagged = scores >= threshold
+        if not flagged.any():
+            continue
+        first_idx = int(flagged.argmax())
+        end_times = seq.get("end_time")
+        anomaly_times = seq.get("first_future_anomaly_time")
+        if end_times is None or anomaly_times is None:
+            continue
+        try:
+            t_detect = _pd.Timestamp(end_times[first_idx])
+            pos_anomaly_times = [t for t in anomaly_times[y == 1] if t and t != ""]
+            if not pos_anomaly_times:
+                continue
+            t_fault = _pd.Timestamp(pos_anomaly_times[0])
+            lead_times.append((t_fault - t_detect).total_seconds() / 60.0)
+        except Exception:
+            continue
+    return float(np.mean(lead_times)) if lead_times else None
+
+
+def compute_false_alarm_stats(
+    test_sequences: list,
+    all_window_scores: list,
+    threshold: float,
+) -> dict:
+    """False alarm count and mean flagged-window count for normal (y=0) sequences."""
+    false_alarm_count = 0
+    false_alarm_windows: list[int] = []
+    total_normal = 0
+    for seq, scores in zip(test_sequences, all_window_scores):
+        y = np.asarray(seq["y"])
+        if int(y.max()) != 0:
+            continue
+        total_normal += 1
+        n_flagged = int((np.asarray(scores) >= threshold).sum())
+        if n_flagged > 0:
+            false_alarm_count += 1
+            false_alarm_windows.append(n_flagged)
+    return {
+        "false_alarm_count": false_alarm_count,
+        "total_normal_events": total_normal,
+        "false_alarm_rate": float(false_alarm_count / total_normal) if total_normal else 0.0,
+        "false_alarm_windows_mean": float(np.mean(false_alarm_windows)) if false_alarm_windows else 0.0,
+    }
+
+
 def compute_autoencoder_architecture_summary(model_name: str, asset_results: list) -> dict:
     if not asset_results:
         raise ValueError(f"No asset results available for {model_name}.")

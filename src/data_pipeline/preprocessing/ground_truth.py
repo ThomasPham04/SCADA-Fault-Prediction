@@ -1,13 +1,14 @@
 """
-GroundTruth — data_pipeline.preprocessing.ground_truth
+GroundTruth - data_pipeline.preprocessing.ground_truth
 
-Creates row-level ground truth labels from event_info metadata.
+Creates row-level ground truth labels from CARE status codes.
 
-Label definition (based on event_info.csv, NOT status_type_id):
+Label definition:
     0  ->  Normal
-    1  ->  Fault   (event_start_id <= id <= event_end_id, anomaly events only)
+    1  ->  Fault   (status_type_id == 4)
 
-For normal events, every row receives label=0.
+The event_info metadata is still used to validate event IDs and report the
+event-level label, but row-level fault truth comes from status_type_id.
 
 Used for:
   - Evaluating anomaly detection models (Option A: unsupervised autoencoder)
@@ -23,12 +24,11 @@ class GroundTruth:
 
     Args:
         event_info: DataFrame from EventLoader.load_event_info().
-                    Must contain: event_id, event_label,
-                                  event_start_id, event_end_id.
+                    Must contain: event_id, event_label.
     """
 
     def __init__(self, event_info: pd.DataFrame) -> None:
-        required = {"event_id", "event_label", "event_start_id", "event_end_id"}
+        required = {"event_id", "event_label"}
         missing = required - set(event_info.columns)
         if missing:
             raise ValueError(f"event_info is missing columns: {missing}")
@@ -42,26 +42,21 @@ class GroundTruth:
         """
         Integer labels (0 = normal, 1 = fault) for a single event dataset.
 
-        For anomaly events: rows where event_start_id <= id <= event_end_id
-        receive label=1.  All other rows receive label=0.
-        For normal events: every row receives label=0.
+        A row receives label=1 if and only if status_type_id == 4.
+        All other rows receive label=0.
 
         Args:
-            df:       Full event DataFrame — must have an 'id' column.
+            df:       Full event DataFrame - must have a 'status_type_id' column.
             event_id: Numeric event identifier matching event_info.
 
         Returns:
             pd.Series[int] with the same index as df, named 'label'.
         """
-        event  = self._info.loc[event_id]
+        _ = self._info.loc[event_id]  # Validate that the event exists in metadata.
         labels = pd.Series(0, index=df.index, dtype=int, name="label")
 
-        if event["event_label"] == "anomaly":
-            fault_mask = (
-                (df["id"] >= event["event_start_id"]) &
-                (df["id"] <= event["event_end_id"])
-            )
-            labels[fault_mask] = 1
+        fault_mask = df["status_type_id"] == 4
+        labels[fault_mask] = 1
 
         return labels
 
@@ -76,11 +71,11 @@ class GroundTruth:
         the autoencoder (train only on normal rows).
 
         Args:
-            df:       Full event DataFrame — must have an 'id' column.
+            df:       Full event DataFrame - must have a 'status_type_id' column.
             event_id: Numeric event identifier.
 
         Returns:
-            pd.Series[bool] — True means normal, False means fault.
+            pd.Series[bool] - True means normal, False means fault.
         """
         return self.make_labels(df, event_id) == 0
 
@@ -93,7 +88,7 @@ class GroundTruth:
         Return a copy of df with a 'label' column added.
 
         Args:
-            df:       Event DataFrame — must have an 'id' column.
+            df:       Event DataFrame - must have a 'status_type_id' column.
             event_id: Numeric event identifier.
 
         Returns:
@@ -109,12 +104,13 @@ class GroundTruth:
 
     def summary(self, df: pd.DataFrame, event_id: int) -> None:
         """Print label distribution for an event dataset."""
-        event  = self._info.loc[event_id]
+        event = self._info.loc[event_id]
         labels = self.make_labels(df, event_id)
-        n_fault  = labels.sum()
+        n_fault = labels.sum()
         n_normal = len(labels) - n_fault
         print(
             f"Event {event_id} ({event['event_label']:7s}) | "
+            f"LabelRule=status_type_id==4 | "
             f"Normal={n_normal:,}  Fault={n_fault:,}  Total={len(labels):,}"
         )
 

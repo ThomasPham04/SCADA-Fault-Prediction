@@ -174,6 +174,21 @@ def load_classifier_val_slice(bundle: dict, asset_filter=None):
     )
 
 
+def load_classifier_val_slice_with_meta(bundle: dict, asset_filter=None):
+    """Same as load_classifier_val_slice but also returns the matching val_meta rows."""
+    val_meta = bundle["val_meta"]
+    filter_ids = _resolve_filter_ids(asset_filter)
+    if filter_ids:
+        mask = pd.to_numeric(val_meta["asset_id"], errors="coerce").isin(filter_ids).to_numpy()
+    else:
+        mask = np.ones(len(val_meta), dtype=bool)
+    return (
+        np.asarray(bundle["X_val"][mask], dtype=np.float32),
+        np.asarray(bundle["y_val"][mask], dtype=np.int8),
+        val_meta.loc[mask].reset_index(drop=True),
+    )
+
+
 def load_autoencoder_test_sequences(asset_dir: Path, asset_filter=None):
     sequence_rows = []
     test_by_seq = asset_dir / "test_by_sequence"
@@ -185,12 +200,15 @@ def load_autoencoder_test_sequences(asset_dir: Path, asset_filter=None):
             asset_id = int(np.asarray(data["asset_id"]).reshape(-1)[0])
             if filter_ids and asset_id not in filter_ids:
                 continue
-            sequence_rows.append(
-                {
-                    "asset_id": asset_id,
-                    "sequence_id": int(np.asarray(data["sequence_id"]).reshape(-1)[0]),
-                    "X": np.asarray(data["X"], dtype=np.float32),
-                    "y": np.asarray(data[label_key], dtype=np.int8),
-                }
-            )
+            row = {
+                "asset_id": asset_id,
+                "sequence_id": int(np.asarray(data["sequence_id"]).reshape(-1)[0]),
+                "X": np.asarray(data["X"], dtype=np.float32),
+                "y": np.asarray(data[label_key], dtype=np.int8),
+            }
+            if "end_time" in data.files:
+                row["end_time"] = np.asarray(data["end_time"])
+            if "first_future_anomaly_time" in data.files:
+                row["first_future_anomaly_time"] = np.asarray(data["first_future_anomaly_time"])
+            sequence_rows.append(row)
     return sequence_rows
