@@ -1,0 +1,113 @@
+{
+  "feature_count": 73,
+  "splits": {
+    "train_normal": {
+      "rows": 274460,
+      "columns": 101,
+      "selected_feature_missing_values": 0,
+      "asset_rows": {
+        "0": 58753,
+        "10": 58783,
+        "11": 53616,
+        "13": 51260,
+        "21": 52048
+      },
+      "time_start": "2022-03-05 19:10:00",
+      "time_end": "2023-09-24 23:10:00",
+      "label_counts": {
+        "label": {
+          "0": 274460
+        },
+        "label_prediction_period_anomaly": {
+          "0": 274460
+        },
+        "label_timestamp_interval_anomaly": {
+          "0": 274460
+        },
+        "label_normal_status": {
+          "1": 274460
+        },
+        "label_status_anomaly": {
+          "0": 274460
+        },
+        "label_eval_mask_normal_status": {
+          "1": 274460
+        }
+      }
+    },
+    "validation_normal": {
+      "rows": 48438,
+      "columns": 101,
+      "selected_feature_missing_values": 0,
+      "asset_rows": {
+        "0": 10369,
+        "10": 10374,
+        "11": 9462,
+        "13": 9047,
+        "21": 9186
+      },
+      "time_start": "2023-05-17 08:50:00",
+      "time_end": "2023-12-30 23:50:00",
+      "label_counts": {
+        "label": {
+          "0": 48438
+        },
+        "label_prediction_period_anomaly": {
+          "0": 48438
+        },
+        "label_timestamp_interval_anomaly": {
+          "0": 48438
+        },
+        "label_normal_status": {
+          "1": 48438
+        },
+        "label_status_anomaly": {
+          "0": 48438
+        },
+        "label_eval_mask_normal_status": {
+          "1": 48438
+        }
+      }
+    },
+    "test_prediction": {
+      "rows": 50593,
+      "columns": 101,
+      "selected_feature_missing_values": 0,
+      "asset_rows": {
+        "0": 11171,
+        "10": 13874,
+        "11": 9085,
+        "13": 7322,
+        "21": 9141
+      },
+      "time_start": "2023-03-02 14:00:00",
+      "time_end": "2024-01-26 13:00:00",
+      "label_counts": {
+        "label": {
+          "0": 34026,
+          "1": 16567
+        },
+        "label_prediction_period_anomaly": {
+          "0": 28457,
+          "1": 22136
+        },
+        "label_timestamp_interval_anomaly": {
+          "0": 48577,
+          "1": 2016
+        },
+        "label_normal_status": {
+          "1": 39098,
+          "0": 11495
+        },
+        "label_status_anomaly": {
+          "0": 39098,
+          "1": 11495
+        },
+        "label_eval_mask_normal_status": {
+          "1": 39098,
+          "0": 11495
+        }
+      }
+    }
+  }
+}

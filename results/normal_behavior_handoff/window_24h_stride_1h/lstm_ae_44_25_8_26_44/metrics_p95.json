@@ -1,0 +1,139 @@
+{
+  "source_run_dir": "results/normal_behavior_handoff/window_24h_stride_1h/lstm_ae_44_25_8_26_44",
+  "model_name": "lstm_ae",
+  "custom_lstm_units": [
+    44,
+    25,
+    8,
+    26,
+    44
+  ],
+  "threshold_quantile": 0.95,
+  "threshold": 13.92988610267639,
+  "validation_score_percentiles": {
+    "p95": 13.92988610267639,
+    "p97_5": 15.469542884826653,
+    "p99": 23.024387226103897,
+    "p99_5": 51.54912271499627,
+    "min": 4.025787830352783,
+    "median": 6.180130958557129,
+    "max": 53.84926986694336
+  },
+  "test_score_percentiles": {
+    "p95": 25.67967414855957,
+    "p97_5": 52.95110321044922,
+    "p99": 104.31103820800794,
+    "p99_5": 123.03435592651363,
+    "min": 3.8412044048309326,
+    "median": 8.831945419311523,
+    "max": 150.38905334472656
+  },
+  "window_metrics_any_event_interval": {
+    "threshold": 13.92988610267639,
+    "accuracy": 0.6637919417868212,
+    "precision": 0.5034904013961605,
+    "recall": 0.2305233719536556,
+    "f1": 0.31625102767881613,
+    "pr_auc": 0.4212174685540605,
+    "roc_auc": 0.5557892952206844,
+    "confusion_matrix": [
+      [
+        4349,
+        569
+      ],
+      [
+        1926,
+        577
+      ]
+    ],
+    "support": 7421,
+    "positive_count": 2503,
+    "negative_count": 4918
+  },
+  "window_metrics_last_event_interval": {
+    "threshold": 13.92988610267639,
+    "accuracy": 0.6581323271796254,
+    "precision": 0.4319371727748691,
+    "recall": 0.20789584208315834,
+    "f1": 0.28069180606747945,
+    "pr_auc": 0.36047749726359013,
+    "roc_auc": 0.5303464347379719,
+    "confusion_matrix": [
+      [
+        4389,
+        651
+      ],
+      [
+        1886,
+        495
+      ]
+    ],
+    "support": 7421,
+    "positive_count": 2381,
+    "negative_count": 5040
+  },
+  "window_metrics_status_anomaly": {
+    "threshold": 13.92988610267639,
+    "accuracy": 0.44023716480258723,
+    "precision": 0.5619546247818499,
+    "recall": 0.14990689013035383,
+    "f1": 0.2366776920249908,
+    "pr_auc": 0.6475461578160594,
+    "roc_auc": 0.6576540037243949,
+    "confusion_matrix": [
+      [
+        2623,
+        502
+      ],
+      [
+        3652,
+        644
+      ]
+    ],
+    "support": 7421,
+    "positive_count": 4296,
+    "negative_count": 3125
+  },
+  "event_metrics_any_window_score": {
+    "threshold": 13.92988610267639,
+    "accuracy": 0.5909090909090909,
+    "precision": 0.55,
+    "recall": 1.0,
+    "f1": 0.7096774193548387,
+    "pr_auc": 0.7779889228418639,
+    "roc_auc": 0.7272727272727272,
+    "confusion_matrix": [
+      [
+        2,
+        9
+      ],
+      [
+        0,
+        11
+      ]
+    ],
+    "support": 22,
+    "positive_count": 11,
+    "negative_count": 11
+  },
+  "event_metrics_consecutive_rule": {
+    "accuracy": 0.5,
+    "precision": 0.5,
+    "recall": 0.7272727272727273,
+    "f1": 0.5925925925925926,
+    "confusion_matrix": [
+      [
+        3,
+        8
+      ],
+      [
+        3,
+        8
+      ]
+    ],
+    "support": 22,
+    "positive_count": 11,
+    "negative_count": 11
+  },
+  "event_consecutive_windows": 12
+}

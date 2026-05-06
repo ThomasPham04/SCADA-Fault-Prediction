@@ -1,0 +1,113 @@
+{
+  "model_name": "dense_ae",
+  "asset_id": 0,
+  "train_shape": [
+    18068,
+    144,
+    88
+  ],
+  "val_normal_shape": [
+    212,
+    144,
+    88
+  ],
+  "val_labeled_shape": [
+    471,
+    144,
+    88
+  ],
+  "selected_threshold": 0.344,
+  "threshold_source": "adaptive_threshold_nn",
+  "validation_metrics": {
+    "threshold": 0.344,
+    "accuracy": 0.4883227176220807,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "pr_auc": 0.7633255697201888,
+    "roc_auc": 0.6283240122677252,
+    "confusion_matrix": [
+      [
+        230,
+        0
+      ],
+      [
+        241,
+        0
+      ]
+    ],
+    "support": 471,
+    "positive_count": 241,
+    "negative_count": 230
+  },
+  "test_metrics": {
+    "threshold": 0.344,
+    "accuracy": 0.7298245614035088,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "pr_auc": 0.17955506126300064,
+    "roc_auc": 0.24818931068931066,
+    "confusion_matrix": [
+      [
+        208,
+        0
+      ],
+      [
+        77,
+        0
+      ]
+    ],
+    "support": 285,
+    "positive_count": 77,
+    "negative_count": 208
+  },
+  "event_test_metrics": {
+    "threshold": 0.344,
+    "accuracy": 0.6,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "pr_auc": 0.45,
+    "roc_auc": 0.33333333333333337,
+    "confusion_matrix": [
+      [
+        3,
+        0
+      ],
+      [
+        2,
+        0
+      ]
+    ],
+    "support": 5,
+    "positive_count": 2,
+    "negative_count": 3
+  },
+  "lead_time_minutes": null,
+  "false_alarm_stats": {
+    "false_alarm_count": 0,
+    "total_normal_events": 3,
+    "false_alarm_rate": 0.0,
+    "false_alarm_windows_mean": 0.0
+  },
+  "summary": {
+    "model_name": "dense_ae",
+    "asset_id": 0,
+    "threshold": 0.344,
+    "threshold_source": "adaptive_threshold_nn",
+    "accuracy": 0.7298245614035088,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "pr_auc": 0.17955506126300064,
+    "roc_auc": 0.24818931068931066,
+    "event_precision": 0.0,
+    "event_recall": 0.0,
+    "event_f1": 0.0,
+    "event_count": 5,
+    "lead_time_minutes": null,
+    "false_alarm_count": 0,
+    "false_alarm_rate": 0.0
+  }
+}
