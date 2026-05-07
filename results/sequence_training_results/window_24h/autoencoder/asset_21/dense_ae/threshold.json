@@ -1,6 +1,6 @@
 {
-  "asset_id": 0,
+  "asset_id": 21,
   "model_name": "dense_ae",
-  "selected_threshold": 0.3300267159938812,
+  "selected_threshold": 0.3197929835319519,
   "threshold_source": "event_level_f1_sweep"
 }
