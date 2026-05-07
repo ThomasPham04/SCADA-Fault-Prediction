@@ -132,6 +132,7 @@ class CombinedSequencePipeline:
         probe_max_train_windows: int = DEFAULT_PROBE_MAX_TRAIN_WINDOWS,
         random_seed: int = 42,
         skip_classifier: bool = False,
+        skip_autoencoder: bool = False,
         skip_per_asset_ae: bool = False,
     ) -> None:
         self.csv_path = Path(csv_path)
@@ -158,6 +159,7 @@ class CombinedSequencePipeline:
         self.probe_max_train_windows = probe_max_train_windows
         self.random_seed = random_seed
         self.skip_classifier = skip_classifier
+        self.skip_autoencoder = skip_autoencoder
         self.skip_per_asset_ae = skip_per_asset_ae
 
         if self.scaler_type not in ("minmax", "standard"):
@@ -1180,15 +1182,19 @@ class CombinedSequencePipeline:
                     window_dir,
                     scalers,
                 )
-            autoencoder_summary = self.export_autoencoder_data(
-                train_df_sc,
-                val_df_sc,
-                test_df_sc,
-                feature_cols,
-                window_hours,
-                window_dir,
-                scalers,
-            )
+            if self.skip_autoencoder:
+                print("  [skip] autoencoder export skipped (--skip-autoencoder-export)")
+                autoencoder_summary = {}
+            else:
+                autoencoder_summary = self.export_autoencoder_data(
+                    train_df_sc,
+                    val_df_sc,
+                    test_df_sc,
+                    feature_cols,
+                    window_hours,
+                    window_dir,
+                    scalers,
+                )
             export_summaries.append(
                 {
                     "window_hours": int(window_hours),

@@ -63,6 +63,7 @@ def run_prepare_care(args: argparse.Namespace) -> None:
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
         skip_classifier=args.skip_classifier_export,
+        skip_autoencoder=args.skip_autoencoder_export,
         skip_per_asset_ae=args.skip_per_asset_ae,
     )
     pipeline.run()
@@ -106,6 +107,7 @@ def run_prepare(args: argparse.Namespace) -> None:
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
         skip_classifier=args.skip_classifier_export,
+        skip_autoencoder=args.skip_autoencoder_export,
         skip_per_asset_ae=args.skip_per_asset_ae,
     )
     pipeline.run()
@@ -279,6 +281,12 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         default=False,
         help="Skip exporting classifier windows (saves disk space when only AE training is needed).",
+    )
+    parser.add_argument(
+        "--skip-autoencoder-export",
+        action="store_true",
+        default=False,
+        help="Skip all autoencoder exports (use this when preparing classifier data only).",
     )
     parser.add_argument(
         "--skip-per-asset-ae",
@@ -628,6 +636,12 @@ def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         default=False,
         help="Skip exporting classifier windows.",
+    )
+    parser.add_argument(
+        "--skip-autoencoder-export",
+        action="store_true",
+        default=False,
+        help="Skip all autoencoder exports.",
     )
     parser.add_argument(
         "--skip-per-asset-ae",
