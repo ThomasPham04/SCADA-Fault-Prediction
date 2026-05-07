@@ -138,6 +138,10 @@ def load_autoencoder_global_bundle(autoencoder_root: Path, asset_filter=None) ->
         test_dirs.append(bundle["test_dir"])
         asset_ids.append(int(bundle["asset_id"]))
 
+    feature_cols = []
+    if asset_dirs:
+        feature_cols = load_json(asset_dirs[0] / "metadata.json").get("feature_cols", [])
+
     return {
         "scope": "global",
         "source": "pooled_asset_exports",
@@ -151,6 +155,7 @@ def load_autoencoder_global_bundle(autoencoder_root: Path, asset_filter=None) ->
             "source": "pooled_asset_exports",
             "asset_ids": sorted(asset_ids),
             "asset_filter": sorted(filter_ids) if filter_ids else None,
+            "feature_cols": feature_cols,
         },
         "test_dirs": test_dirs,
         "scalers": None,
@@ -189,10 +194,8 @@ def load_classifier_val_slice_with_meta(bundle: dict, asset_filter=None):
     )
 
 
-def load_autoencoder_test_sequences(asset_dir: Path, asset_filter=None):
+def _load_autoencoder_test_sequences_from_dir(test_dir: Path, asset_filter=None):
     sequence_rows = []
-    test_by_seq = asset_dir / "test_by_sequence"
-    test_dir = test_by_seq if test_by_seq.exists() else asset_dir
     filter_ids = _resolve_filter_ids(asset_filter)
     for npz_path in sorted(test_dir.rglob("sequence_*.npz")):
         with np.load(npz_path, allow_pickle=True) as data:
@@ -211,4 +214,19 @@ def load_autoencoder_test_sequences(asset_dir: Path, asset_filter=None):
             if "first_future_anomaly_time" in data.files:
                 row["first_future_anomaly_time"] = np.asarray(data["first_future_anomaly_time"])
             sequence_rows.append(row)
+    return sequence_rows
+
+
+def load_autoencoder_test_sequences(asset_dir: Path, asset_filter=None):
+    test_by_seq = asset_dir / "test_by_sequence"
+    test_dir = test_by_seq if test_by_seq.exists() else asset_dir
+    return _load_autoencoder_test_sequences_from_dir(test_dir, asset_filter=asset_filter)
+
+
+def load_autoencoder_test_sequences_from_dirs(test_dirs: list[Path], asset_filter=None):
+    sequence_rows = []
+    for test_dir in test_dirs:
+        sequence_rows.extend(
+            _load_autoencoder_test_sequences_from_dir(Path(test_dir), asset_filter=asset_filter)
+        )
     return sequence_rows

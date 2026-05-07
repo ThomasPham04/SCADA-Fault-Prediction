@@ -66,6 +66,13 @@ FAULT_TYPE_FEATURE_GROUPS: dict[str, list[str]] = {
     ],
 }
 
+FAULT_DESCRIPTION_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "hydraulic": ("hydraulic",),
+    "gearbox": ("gearbox",),
+    "generator_bearing": ("generator bearing",),
+    "transformer": ("transformer",),
+}
+
 # ---------------------------------------------------------------------------
 # Asset → applicable fault types
 # Based on event_info.csv for Wind Farm A
@@ -113,3 +120,14 @@ def get_feature_indices(fault_type: str, all_feature_cols: list[str]) -> list[in
 
 def is_low_confidence(asset_id: int, fault_type: str) -> bool:
     return asset_id in LOW_CONFIDENCE_ASSETS.get(fault_type, [])
+
+
+def fault_type_from_description(description: object) -> str | None:
+    """Map an event description from event_info.csv to a detector fault type."""
+    text = "" if description is None else str(description).strip().lower()
+    if not text or text == "nan":
+        return None
+    for fault_type, keywords in FAULT_DESCRIPTION_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            return fault_type
+    return None
