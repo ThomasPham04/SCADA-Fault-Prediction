@@ -98,6 +98,41 @@ def per_timestep_l2_scores(model, X, batch_size: int) -> np.ndarray:
     return np.sqrt(np.sum(np.square(X_arr - recon), axis=2)).astype(np.float32)
 
 
+def compute_ewma_scores(
+    raw_errors: np.ndarray,
+    alpha: float,
+    init_value: float | None = None,
+) -> np.ndarray:
+    """Apply EWMA smoothing over an ordered sequence of reconstruction errors.
+
+    Parameters
+    ----------
+    raw_errors:
+        1-D array of per-window reconstruction errors in chronological order.
+    alpha:
+        Smoothing factor in (0, 1).  Smaller → longer memory, slower reaction.
+    init_value:
+        Seed for the EWMA.  When None the first error is used directly
+        (standard EWMA).  Pass the median of normal validation errors to avoid
+        a cold-start spike at the beginning of a sequence.
+
+    Returns
+    -------
+    np.ndarray of the same shape and dtype as raw_errors.
+    """
+    raw_errors = np.asarray(raw_errors, dtype=np.float32)
+    if raw_errors.size == 0:
+        return raw_errors.copy()
+    ewma = np.empty_like(raw_errors)
+    if init_value is None:
+        ewma[0] = raw_errors[0]
+    else:
+        ewma[0] = alpha * raw_errors[0] + (1.0 - alpha) * float(init_value)
+    for i in range(1, len(raw_errors)):
+        ewma[i] = alpha * raw_errors[i] + (1.0 - alpha) * ewma[i - 1]
+    return ewma
+
+
 def adaptive_reconstruction_scores(
     ae_model,
     threshold_nn,
