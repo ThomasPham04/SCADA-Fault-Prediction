@@ -148,6 +148,9 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         classifier_learning_rate=args.classifier_learning_rate,
         classifier_dropout=args.classifier_dropout,
         classifier_l2=args.classifier_l2,
+        classifier_loss=args.classifier_loss,
+        classifier_focal_gamma=args.classifier_focal_gamma,
+        classifier_focal_alpha=args.classifier_focal_alpha,
         autoencoder_epochs=args.autoencoder_epochs,
         autoencoder_batch_size=args.autoencoder_batch_size,
         autoencoder_scope=args.autoencoder_scope,
@@ -395,6 +398,28 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=0.0,
         help="L2 regularization strength for classifier Conv/RNN/Dense kernels.",
+    )
+    parser.add_argument(
+        "--classifier-loss",
+        type=str,
+        default="binary_crossentropy",
+        choices=["binary_crossentropy", "focal"],
+        help=(
+            "Classifier loss. 'focal' uses BinaryFocalCrossentropy with class "
+            "balancing enabled and disables external class_weight."
+        ),
+    )
+    parser.add_argument(
+        "--classifier-focal-gamma",
+        type=float,
+        default=2.0,
+        help="Gamma for focal loss when --classifier-loss focal is used.",
+    )
+    parser.add_argument(
+        "--classifier-focal-alpha",
+        type=float,
+        default=0.75,
+        help="Positive-class alpha for focal loss when --classifier-loss focal is used.",
     )
     parser.add_argument("--autoencoder-epochs", type=int, default=30)
     parser.add_argument("--autoencoder-batch-size", type=int, default=128)
