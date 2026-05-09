@@ -165,3 +165,22 @@ Best current choice:
 - test F1: 0.7716
 
 Focal loss was useful to test, but not the winner here.
+
+## 10. Recall-First Sweep On Focal Runs
+
+Rule used:
+
+- validate threshold on `val_predictions.csv`
+- keep thresholds with `val recall >= 0.80`
+- pick one with best validation precision
+
+Results on `results/sequence_training_results_detection_focal_all_models/window_24h/classifier/`:
+
+- `gru`: threshold `0.025968`, test precision `0.5897`, test recall `0.8545`
+- `cnn_gru`: threshold `0.009739`, test precision `0.6149`, test recall `0.8303`
+- `cnn_lstm`: threshold `0.032585`, test precision `0.6625`, test recall `0.8180`
+- `lstm`: threshold `0.419681`, test precision `0.5285`, test recall `0.7396`
+
+Best recall:
+
+- `gru` with test recall `0.8545`
