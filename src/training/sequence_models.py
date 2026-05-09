@@ -20,6 +20,9 @@ def build_classifier_model(
     learning_rate: float = 1e-3,
     dropout_rate: float | None = None,
     l2_strength: float = 0.0,
+    loss_name: str = "binary_crossentropy",
+    focal_gamma: float = 2.0,
+    focal_alpha: float = 0.75,
 ):
     if learning_rate <= 0:
         raise ValueError("learning_rate must be positive.")
@@ -27,6 +30,10 @@ def build_classifier_model(
         raise ValueError("dropout_rate must be in [0, 1).")
     if l2_strength < 0:
         raise ValueError("l2_strength must be non-negative.")
+    if focal_gamma < 0:
+        raise ValueError("focal_gamma must be non-negative.")
+    if not 0.0 <= focal_alpha <= 1.0:
+        raise ValueError("focal_alpha must be in [0, 1].")
 
     inputs = layers.Input(shape=input_shape, name="input_sequence")
     regularizer = regularizers.l2(l2_strength) if l2_strength > 0 else None
@@ -116,9 +123,20 @@ def build_classifier_model(
     outputs = layers.Dense(1, activation="sigmoid")(x)
 
     model = models.Model(inputs=inputs, outputs=outputs, name=model_name)
+    if loss_name == "binary_crossentropy":
+        loss = "binary_crossentropy"
+    elif loss_name == "focal":
+        loss = tf.keras.losses.BinaryFocalCrossentropy(
+            apply_class_balancing=True,
+            alpha=focal_alpha,
+            gamma=focal_gamma,
+        )
+    else:
+        raise ValueError("loss_name must be 'binary_crossentropy' or 'focal'")
+
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss="binary_crossentropy",
+        loss=loss,
         metrics=[
             tf.keras.metrics.AUC(curve="PR", name="pr_auc"),
             tf.keras.metrics.AUC(curve="ROC", name="roc_auc"),

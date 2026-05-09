@@ -120,6 +120,9 @@ def run_classifier_experiment(
     learning_rate: float,
     dropout_rate: float | None,
     l2_strength: float,
+    loss_name: str,
+    focal_gamma: float,
+    focal_alpha: float,
     overwrite: bool,
     save_predictions: bool,
 ) -> dict:
@@ -149,10 +152,15 @@ def run_classifier_experiment(
         learning_rate=learning_rate,
         dropout_rate=dropout_rate,
         l2_strength=l2_strength,
+        loss_name=loss_name,
+        focal_gamma=focal_gamma,
+        focal_alpha=focal_alpha,
     )
     model.summary()
     save_model_summary(model, output_dir / "model_summary.txt")
     model_path = output_dir / "model.keras"
+
+    class_weight = None if loss_name == "focal" else compute_class_weights(y_train)
 
     history = model.fit(
         X_train,
@@ -160,7 +168,7 @@ def run_classifier_experiment(
         validation_data=(X_val, y_val),
         epochs=epochs,
         batch_size=batch_size,
-        class_weight=compute_class_weights(y_train),
+        class_weight=class_weight,
         callbacks=classifier_callbacks(model_path),
         verbose=1,
     )
@@ -177,16 +185,13 @@ def run_classifier_experiment(
     val_scores = best_model.predict(X_val, batch_size=batch_size, verbose=0).reshape(-1)
     test_scores = best_model.predict(X_test, batch_size=batch_size, verbose=0).reshape(-1)
 
-    threshold_grid = np.arange(0.10, 0.91, 0.05)
+    # The classifier scores are sigmoid probabilities, so a coarse 0.05 sweep
+    # can miss the best operating point by a lot. Use a dense full-range grid
+    # so threshold selection can actually optimize validation F1.
+    threshold_grid = np.linspace(0.0, 1.0, 1001)
     val_meta = bundle["val_meta"]
-    has_seq_col = "sequence_id" in val_meta.columns and "asset_id" in val_meta.columns
-    has_pos_val = int(y_val.max()) > 0 if len(y_val) > 0 else False
-    if has_seq_col and has_pos_val:
-        sweep_df = sweep_thresholds_event_level(val_meta, val_scores, threshold_grid)
-        threshold_source = "event_level_f1_sweep"
-    else:
-        sweep_df = sweep_thresholds(y_val, val_scores, threshold_grid)
-        threshold_source = "validation_f1_sweep"
+    sweep_df = sweep_thresholds(y_val, val_scores, threshold_grid)
+    threshold_source = "validation_f1_sweep"
     best_row = pick_best_threshold(sweep_df)
     best_threshold = float(best_row["threshold"])
 
@@ -271,6 +276,9 @@ def run_classifier_experiment(
             "learning_rate": float(learning_rate),
             "dropout_rate": None if dropout_rate is None else float(dropout_rate),
             "l2_strength": float(l2_strength),
+            "loss_name": loss_name,
+            "focal_gamma": float(focal_gamma),
+            "focal_alpha": float(focal_alpha),
         },
         "selected_threshold": best_threshold,
         "threshold_source": threshold_source,

@@ -70,6 +70,9 @@ class SequenceTrainingConfig:
     classifier_learning_rate: float = 1e-3
     classifier_dropout: float | None = None
     classifier_l2: float = 0.0
+    classifier_loss: str = "binary_crossentropy"
+    classifier_focal_gamma: float = 2.0
+    classifier_focal_alpha: float = 0.75
     autoencoder_epochs: int = 30
     autoencoder_batch_size: int = 128
     autoencoder_scope: str = "per_asset"
@@ -90,12 +93,17 @@ class SequenceTrainingConfig:
         self.asset_filter = to_int_list(self.asset_filter)
         self.classifier_learning_rate = float(self.classifier_learning_rate)
         self.classifier_l2 = float(self.classifier_l2)
+        self.classifier_loss = str(self.classifier_loss)
+        self.classifier_focal_gamma = float(self.classifier_focal_gamma)
+        self.classifier_focal_alpha = float(self.classifier_focal_alpha)
         self.autoencoder_learning_rate = float(self.autoencoder_learning_rate)
         self.autoencoder_noise = float(self.autoencoder_noise)
         self.autoencoder_gamma = float(self.autoencoder_gamma)
         valid_scopes = {"per_asset", "global", "both"}
         if self.autoencoder_scope not in valid_scopes:
             raise ValueError(f"autoencoder_scope must be one of {sorted(valid_scopes)}")
+        if self.classifier_loss not in {"binary_crossentropy", "focal"}:
+            raise ValueError("classifier_loss must be 'binary_crossentropy' or 'focal'")
 
 
 class SequenceModelTrainer:
@@ -151,6 +159,9 @@ class SequenceModelTrainer:
                 learning_rate=cfg.classifier_learning_rate,
                 dropout_rate=cfg.classifier_dropout,
                 l2_strength=cfg.classifier_l2,
+                loss_name=cfg.classifier_loss,
+                focal_gamma=cfg.classifier_focal_gamma,
+                focal_alpha=cfg.classifier_focal_alpha,
                 overwrite=cfg.overwrite,
                 save_predictions=cfg.save_predictions,
             )
@@ -298,6 +309,10 @@ class SequenceModelTrainer:
         print(f"Classifier lr  : {cfg.classifier_learning_rate}")
         print(f"Classifier drop: {cfg.classifier_dropout}")
         print(f"Classifier L2  : {cfg.classifier_l2}")
+        print(f"Classifier loss: {cfg.classifier_loss}")
+        if cfg.classifier_loss == "focal":
+            print(f"Focal alpha   : {cfg.classifier_focal_alpha}")
+            print(f"Focal gamma   : {cfg.classifier_focal_gamma}")
         print(f"Autoencoder set: {cfg.autoencoder_models}")
         print(f"Autoenc. scope : {cfg.autoencoder_scope}")
         print(f"Autoenc. lr    : {cfg.autoencoder_learning_rate}")
