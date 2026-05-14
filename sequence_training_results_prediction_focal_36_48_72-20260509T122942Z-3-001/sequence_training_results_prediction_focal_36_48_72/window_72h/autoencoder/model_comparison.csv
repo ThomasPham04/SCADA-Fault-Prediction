@@ -1,0 +1,1 @@
+model_name,scope,asset_count,threshold,macro_accuracy,macro_precision,macro_recall,macro_f1,macro_pr_auc,macro_roc_auc,pooled_accuracy,pooled_precision,pooled_recall,pooled_f1,pooled_pr_auc,pooled_roc_auc

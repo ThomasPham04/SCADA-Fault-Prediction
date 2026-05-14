@@ -49,7 +49,8 @@ def main() -> None:
         model_path = os.path.join(MODELS_DIR, "lstm_7day.keras")
         if not os.path.exists(model_path):
             print(f"Error: Model not found at {model_path}")
-            print("Run: python -m src.training.scripts.train_lstm")
+            print("Legacy per-asset LSTM training script has been removed.")
+            print("Use the current pipeline: python src/main.py train-sequences --windows 24")
             return
         model       = keras.models.load_model(model_path)
         train_events = load_events("train")

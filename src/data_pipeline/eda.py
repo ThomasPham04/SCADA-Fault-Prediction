@@ -47,6 +47,9 @@ except ImportError:
 META_COLUMNS = {
     "time_stamp", "asset_id", "sequence_id", "train_test", "status_type_id", "label",
 }
+DEFAULT_EDA_WINDOW_STEPS = 144
+DEFAULT_EDA_HORIZON_STEPS = 72
+DEFAULT_EDA_STRIDE_STEPS = 6
 
 
 def _resolve_feature_columns(df: pd.DataFrame, feature_file: str | None) -> list[str]:
@@ -67,6 +70,31 @@ def _set_boxplot_labels(ax, data, labels_box) -> None:
         ax.boxplot(data, tick_labels=labels_box, showfliers=False)
     except TypeError:
         ax.boxplot(data, labels=labels_box, showfliers=False)
+
+
+def _annotate_bars(ax, bars, total: int) -> None:
+    for bar in bars:
+        value = int(bar.get_height())
+        pct = value / max(total, 1) * 100
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value,
+            f"{value:,}\n({pct:.1f}%)",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+
+def _find_event_info_path(csv_path: Path) -> Path | None:
+    candidates = [
+        csv_path.parent.parent / "raw" / "Wind Farm A" / "event_info.csv",
+        csv_path.parent.parent.parent / "raw" / "Wind Farm A" / "event_info.csv",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 @dataclass
@@ -389,7 +417,7 @@ class EDAReport:
         fig.savefig(self.output_dir / "time_series_overview.png", dpi=160)
         plt.close(fig)
 
-    def plot_label_balance(self) -> None:
+    def _plot_label_balance_legacy(self) -> None:
         n_normal = int((self.df["label"] == 0).sum())
         n_fault = int((self.df["label"] == 1).sum())
         total = n_normal + n_fault
@@ -404,6 +432,99 @@ class EDAReport:
         ax.set_ylabel("Row count")
         ax.set_title(f"Label balance — total {total:,} rows")
         ax.grid(axis="y", alpha=0.25)
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "label_balance.png", dpi=160)
+        plt.close(fig)
+
+    def plot_label_balance(self) -> None:
+        row_counts = self.df["label"].astype(int).value_counts().reindex([0, 1], fill_value=0)
+
+        window_counts = pd.Series({0: 0, 1: 0}, dtype=int)
+        if {"asset_id", "sequence_id", "time_stamp"}.issubset(self.df.columns):
+            required_steps = DEFAULT_EDA_WINDOW_STEPS + DEFAULT_EDA_HORIZON_STEPS
+            for _, group in self.df.groupby(["asset_id", "sequence_id"], sort=False):
+                group = group.sort_values("time_stamp", kind="mergesort")
+                labels = group["label"].to_numpy(dtype=np.int8)
+                max_start = len(labels) - required_steps + 1
+                if max_start <= 0:
+                    continue
+                for start in range(0, max_start, DEFAULT_EDA_STRIDE_STEPS):
+                    end = start + DEFAULT_EDA_WINDOW_STEPS
+                    horizon_end = end + DEFAULT_EDA_HORIZON_STEPS
+                    target = int(labels[end:horizon_end].max())
+                    window_counts.loc[target] += 1
+
+        event_info_path = _find_event_info_path(self.csv_path)
+        event_fault_counts = None
+        if event_info_path is not None:
+            event_info = pd.read_csv(event_info_path, sep=None, engine="python")
+            if {"event_label", "event_description"}.issubset(event_info.columns):
+                fault_events = event_info[
+                    event_info["event_label"].astype(str).str.lower().eq("anomaly")
+                ]
+                event_fault_counts = (
+                    fault_events["event_description"]
+                    .fillna("Unknown")
+                    .astype(str)
+                    .value_counts()
+                    .sort_values(ascending=False)
+                )
+
+        if event_fault_counts is not None and not event_fault_counts.empty:
+            event_counts = event_fault_counts
+        elif {"sequence_id", "label"}.issubset(self.df.columns):
+            group_cols = ["sequence_id"]
+            if "asset_id" in self.df.columns:
+                group_cols = ["asset_id", "sequence_id"]
+            event_labels = (
+                self.df.groupby(group_cols, sort=False)["label"]
+                .max()
+                .astype(int)
+            )
+            event_counts = event_labels.value_counts().reindex([0, 1], fill_value=0)
+        else:
+            event_counts = pd.Series({0: 0, 1: 0}, dtype=int)
+
+        fig, axes = plt.subplots(1, 3, figsize=(14, 4.6))
+        panels = [
+            (
+                axes[0],
+                row_counts,
+                "Row-level label balance",
+                "Number of 10-minute SCADA samples",
+            ),
+            (
+                axes[1],
+                window_counts,
+                "Window-level label balance",
+                "Number of sliding windows",
+            ),
+            (
+                axes[2],
+                event_counts,
+                "Event-level fault distribution",
+                "Number of fault events",
+            ),
+        ]
+
+        for panel_idx, (ax, counts, title, ylabel) in enumerate(panels):
+            if panel_idx == 2 and event_fault_counts is not None and not event_fault_counts.empty:
+                labels = counts.index.astype(str).tolist()
+                values = [int(v) for v in counts.tolist()]
+                bars = ax.bar(labels, values, color="#E15759")
+                ax.tick_params(axis="x", rotation=20, labelsize=8)
+            else:
+                labels = ["Normal", "Fault"]
+                values = [int(counts.loc[0]), int(counts.loc[1])]
+                bars = ax.bar(labels, values, color=["#4E79A7", "#E15759"])
+            _annotate_bars(ax, bars, sum(values))
+            ax.set_ylabel(ylabel)
+            ax.set_title(title)
+            ax.grid(axis="y", alpha=0.25)
+            ax.margins(y=0.18)
+            ax.ticklabel_format(axis="y", style="plain")
+
+        fig.suptitle("Label balance across rows, sliding windows, and events", fontsize=12)
         fig.tight_layout()
         fig.savefig(self.output_dir / "label_balance.png", dpi=160)
         plt.close(fig)

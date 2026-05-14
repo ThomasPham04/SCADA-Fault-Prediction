@@ -1,0 +1,109 @@
+{
+  "model_name": "cnn_lstm",
+  "train_shape": [
+    161326,
+    216,
+    21
+  ],
+  "val_shape": [
+    27610,
+    216,
+    21
+  ],
+  "test_shape": [
+    7390,
+    216,
+    21
+  ],
+  "hyperparameters": {
+    "learning_rate": 0.001,
+    "dropout_rate": null,
+    "l2_strength": 0.0,
+    "loss_name": "focal",
+    "focal_gamma": 2.0,
+    "focal_alpha": 0.75
+  },
+  "selected_threshold": 0.668,
+  "threshold_source": "validation_f1_sweep",
+  "validation_metrics": {
+    "threshold": 0.668,
+    "accuracy": 0.904491126403477,
+    "precision": 0.5221588415971917,
+    "recall": 0.4346238130021914,
+    "f1": 0.47438708391469003,
+    "pr_auc": 0.3948299219802306,
+    "roc_auc": 0.829894582541649,
+    "confusion_matrix": [
+      [
+        23783,
+        1089
+      ],
+      [
+        1548,
+        1190
+      ]
+    ],
+    "support": 27610,
+    "positive_count": 2738,
+    "negative_count": 24872
+  },
+  "test_metrics": {
+    "threshold": 0.668,
+    "accuracy": 0.810148849797023,
+    "precision": 0.9573529411764706,
+    "recall": 0.49187759727993957,
+    "f1": 0.6498627402046419,
+    "pr_auc": 0.8403014813699176,
+    "roc_auc": 0.875951205924847,
+    "confusion_matrix": [
+      [
+        4685,
+        58
+      ],
+      [
+        1345,
+        1302
+      ]
+    ],
+    "support": 7390,
+    "positive_count": 2647,
+    "negative_count": 4743
+  },
+  "event_test_metrics": {
+    "threshold": 0.668,
+    "accuracy": 0.9545454545454546,
+    "precision": 0.9230769230769231,
+    "recall": 1.0,
+    "f1": 0.96,
+    "pr_auc": 0.9935897435897437,
+    "roc_auc": 0.9916666666666667,
+    "confusion_matrix": [
+      [
+        9,
+        1
+      ],
+      [
+        0,
+        12
+      ]
+    ],
+    "support": 22,
+    "positive_count": 12,
+    "negative_count": 10
+  },
+  "summary": {
+    "model_name": "cnn_lstm",
+    "threshold": 0.668,
+    "threshold_source": "validation_f1_sweep",
+    "accuracy": 0.810148849797023,
+    "precision": 0.9573529411764706,
+    "recall": 0.49187759727993957,
+    "f1": 0.6498627402046419,
+    "pr_auc": 0.8403014813699176,
+    "roc_auc": 0.875951205924847,
+    "event_precision": 0.9230769230769231,
+    "event_recall": 1.0,
+    "event_f1": 0.96,
+    "event_count": 22
+  }
+}

@@ -1,7 +1,6 @@
 """
 Visualizer — utils.visualization
-Shared plotting helpers consolidated from train_lstm.py, train_xgboost.py,
-train_random_forest.py, and evaluate_lstm.py.
+Shared Matplotlib plotting helpers used across training and evaluation.
 """
 
 from __future__ import annotations

@@ -1,18 +1,14 @@
 """
 GroundTruth - data_pipeline.preprocessing.ground_truth
 
-Creates row-level ground truth labels from CARE status codes.
+Creates row-level ground truth labels for CARE event files.
 
 Label definition:
-    0  ->  Normal
-    1  ->  Fault   (status_type_id == 4)
+    0 -> Normal
+    1 -> Fault/anomaly row
 
-The event_info metadata is still used to validate event IDs and report the
-event-level label, but row-level fault truth comes from status_type_id.
-
-Used for:
-  - Evaluating anomaly detection models (Option A: unsupervised autoencoder)
-  - Training supervised classifiers    (Option B: binary classifier)
+A row is positive when it has a non-zero CARE status code, or when it belongs
+to the prediction segment of an event whose event-level label is anomaly.
 """
 
 import pandas as pd
@@ -42,20 +38,22 @@ class GroundTruth:
         """
         Integer labels (0 = normal, 1 = fault) for a single event dataset.
 
-        A row receives label=1 if and only if status_type_id == 4.
-        All other rows receive label=0.
+        A row receives label=1 when status_type_id is non-zero, or when it is
+        in the prediction segment of an anomaly event.
 
         Args:
-            df:       Full event DataFrame - must have a 'status_type_id' column.
+            df:       Full event DataFrame - must have status_type_id and train_test.
             event_id: Numeric event identifier matching event_info.
 
         Returns:
             pd.Series[int] with the same index as df, named 'label'.
         """
-        _ = self._info.loc[event_id]  # Validate that the event exists in metadata.
+        event = self._info.loc[event_id]
         labels = pd.Series(0, index=df.index, dtype=int, name="label")
 
-        fault_mask = df["status_type_id"] == 4
+        fault_mask = df["status_type_id"] != 0
+        if event["event_label"] == "anomaly":
+            fault_mask = fault_mask | (df["train_test"] == "prediction")
         labels[fault_mask] = 1
 
         return labels
@@ -71,7 +69,7 @@ class GroundTruth:
         the autoencoder (train only on normal rows).
 
         Args:
-            df:       Full event DataFrame - must have a 'status_type_id' column.
+            df:       Full event DataFrame - must have status_type_id and train_test.
             event_id: Numeric event identifier.
 
         Returns:
@@ -88,7 +86,7 @@ class GroundTruth:
         Return a copy of df with a 'label' column added.
 
         Args:
-            df:       Event DataFrame - must have a 'status_type_id' column.
+            df:       Event DataFrame - must have status_type_id and train_test.
             event_id: Numeric event identifier.
 
         Returns:
@@ -110,7 +108,7 @@ class GroundTruth:
         n_normal = len(labels) - n_fault
         print(
             f"Event {event_id} ({event['event_label']:7s}) | "
-            f"LabelRule=status_type_id==4 | "
+            f"LabelRule=status_type_id!=0 OR anomaly prediction segment | "
             f"Normal={n_normal:,}  Fault={n_fault:,}  Total={len(labels):,}"
         )
 
