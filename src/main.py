@@ -26,14 +26,34 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 
+def prediction_horizon_steps_from_hours(horizon_hours: int | None, time_resolution_minutes: int) -> int | None:
+    """Convert a horizon in hours to whole timesteps for the sequence pipeline."""
+    if horizon_hours is None:
+        return None
+    if horizon_hours <= 0:
+        raise SystemExit("--prediction-horizon-hours must be positive.")
+
+    horizon_steps = horizon_hours * 60 / time_resolution_minutes
+    if not horizon_steps.is_integer():
+        raise SystemExit(
+            "--prediction-horizon-hours must convert to a whole number of "
+            f"{time_resolution_minutes}-minute timesteps."
+        )
+    return int(horizon_steps)
+
+
 def run_prepare_care(args: argparse.Namespace) -> None:
     """Build combined CSV from raw CARE per-event files, then prepare sequence exports."""
     import os
-    from config import PROCESSED_DATA_DIR, STRIDE, WIND_FARM_A_DIR, WIND_FARM_A_DATASETS
+    from config import PROCESSED_DATA_DIR, STRIDE, TIME_RESOLUTION, WIND_FARM_A_DIR, WIND_FARM_A_DATASETS
     from data_pipeline.preprocessing.build_combined_csv import CAREToCombinedCSV
     from data_pipeline.preprocessing.combined_sequence_pipeline import CombinedSequencePipeline
 
     stride = args.stride if args.stride is not None else STRIDE
+    prediction_horizon_steps = prediction_horizon_steps_from_hours(
+        args.prediction_horizon_hours,
+        TIME_RESOLUTION,
+    )
     farm_dir = args.farm_dir or WIND_FARM_A_DIR
     datasets_dir = args.datasets_dir or os.path.join(farm_dir, "datasets")
     if args.combined_csv_output:
@@ -55,6 +75,7 @@ def run_prepare_care(args: argparse.Namespace) -> None:
         window_candidates_hours=args.window_candidates_hours,
         top_k_windows=args.top_k_windows,
         stride_steps=stride,
+        prediction_horizon_steps=prediction_horizon_steps,
         expected_feature_count=args.expected_feature_count,
         scaler_type=args.combined_scaler,
         validation_source=args.validation_source,
@@ -71,8 +92,12 @@ def run_prepare_care(args: argparse.Namespace) -> None:
 
 def run_prepare(args: argparse.Namespace) -> None:
     """Prepare classifier and autoencoder exports from a combined CSV."""
-    from config import STRIDE as _DEFAULT_STRIDE
+    from config import STRIDE as _DEFAULT_STRIDE, TIME_RESOLUTION
     stride = args.stride if args.stride is not None else _DEFAULT_STRIDE
+    prediction_horizon_steps = prediction_horizon_steps_from_hours(
+        args.prediction_horizon_hours,
+        TIME_RESOLUTION,
+    )
     if not args.csv:
         raise SystemExit(
             "prepare requires --csv. The CSV must contain time_stamp, asset_id, "
@@ -99,6 +124,7 @@ def run_prepare(args: argparse.Namespace) -> None:
         window_candidates_hours=args.window_candidates_hours,
         top_k_windows=args.top_k_windows,
         stride_steps=stride,
+        prediction_horizon_steps=prediction_horizon_steps,
         expected_feature_count=args.expected_feature_count,
         scaler_type=args.combined_scaler,
         validation_source=args.validation_source,
@@ -172,12 +198,13 @@ def add_label_mode_flag(parser: argparse.ArgumentParser) -> None:
         "--label-mode",
         type=str,
         default="future_horizon",
-        choices=["future_horizon", "last_timestamp", "detection"],
+        choices=["future_horizon", "last_timestamp", "detection", "input_window"],
         help=(
             "Window label target. 'future_horizon' preserves the original "
             "prediction task: any fault after the input window within H steps. "
             "'last_timestamp'/'detection' labels each window by its final "
-            "input timestamp."
+            "input timestamp. 'input_window' labels a window positive when any "
+            "input timestamp is positive."
         ),
     )
 
@@ -219,6 +246,16 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
         default=None,
         metavar="H",
         help="Window sizes to test during window search.",
+    )
+    parser.add_argument(
+        "--prediction-horizon-hours",
+        type=int,
+        default=None,
+        metavar="H",
+        help=(
+            "Future prediction horizon in hours. Defaults to the problem config "
+            "value when omitted."
+        ),
     )
     parser.add_argument(
         "--top-k-windows",
@@ -633,6 +670,13 @@ def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sequence-output-dir", type=str, default=None, metavar="DIR")
     parser.add_argument("--window-hours", type=int, nargs="+", default=None, metavar="H")
     parser.add_argument("--window-candidates-hours", type=int, nargs="+", default=None, metavar="H")
+    parser.add_argument(
+        "--prediction-horizon-hours",
+        type=int,
+        default=None,
+        metavar="H",
+        help="Future prediction horizon in hours. Defaults to the problem config value when omitted.",
+    )
     parser.add_argument("--top-k-windows", type=int, default=1)
     parser.add_argument("--skip-window-search", action="store_true")
     parser.add_argument("--expected-feature-count", type=int, default=None)
