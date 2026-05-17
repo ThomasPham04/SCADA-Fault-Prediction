@@ -41,6 +41,7 @@ DEFAULT_VALIDATION_SOURCE = "train_tail"
 VALIDATION_SOURCES = {"train_tail", "prediction"}
 LABEL_MODE_FUTURE_HORIZON = "future_horizon"
 LABEL_MODE_LAST_TIMESTAMP = "last_timestamp"
+LABEL_MODE_INPUT_WINDOW = "input_window"
 LABEL_MODE_ALIASES = {
     "future_horizon": LABEL_MODE_FUTURE_HORIZON,
     "prediction": LABEL_MODE_FUTURE_HORIZON,
@@ -48,10 +49,15 @@ LABEL_MODE_ALIASES = {
     "last_timestamp": LABEL_MODE_LAST_TIMESTAMP,
     "detection": LABEL_MODE_LAST_TIMESTAMP,
     "last": LABEL_MODE_LAST_TIMESTAMP,
+    "input_window": LABEL_MODE_INPUT_WINDOW,
+    "window": LABEL_MODE_INPUT_WINDOW,
+    "window_max": LABEL_MODE_INPUT_WINDOW,
+    "detection_window": LABEL_MODE_INPUT_WINDOW,
 }
 LABEL_DEFINITIONS = {
     LABEL_MODE_FUTURE_HORIZON: "future_horizon_any_positive_after_input_window",
     LABEL_MODE_LAST_TIMESTAMP: "last_timestamp_label_at_window_end",
+    LABEL_MODE_INPUT_WINDOW: "input_window_any_positive_within_window",
 }
 
 METADATA_COLUMNS = {
@@ -117,7 +123,7 @@ class CombinedSequencePipeline:
         selected_windows_hours: Sequence[int] | None = None,
         top_k_windows: int = DEFAULT_TOP_K_WINDOWS,
         stride_steps: int = DEFAULT_STRIDE_STEPS,
-        prediction_horizon_steps: int = DEFAULT_PREDICTION_HORIZON_STEPS,
+        prediction_horizon_steps: int | None = DEFAULT_PREDICTION_HORIZON_STEPS,
         val_ratio: float = VAL_SIZE,
         normal_statuses: Iterable[int] = NORMAL_STATUS,
         time_resolution_minutes: int = TIME_RESOLUTION,
@@ -144,7 +150,11 @@ class CombinedSequencePipeline:
         )
         self.top_k_windows = top_k_windows
         self.stride_steps = stride_steps
-        self.prediction_horizon_steps = int(prediction_horizon_steps)
+        self.prediction_horizon_steps = int(
+            DEFAULT_PREDICTION_HORIZON_STEPS
+            if prediction_horizon_steps is None
+            else prediction_horizon_steps
+        )
         self.val_ratio = val_ratio
         self.normal_statuses = set(int(x) for x in normal_statuses)
         self.time_resolution_minutes = time_resolution_minutes
@@ -498,7 +508,10 @@ class CombinedSequencePipeline:
                     horizon_start_time = timestamps[end]
                     horizon_end_time = timestamps[horizon_end - 1]
                 else:
-                    target_label = last_input_label
+                    if self.label_mode == LABEL_MODE_INPUT_WINDOW:
+                        target_label = int(labels[start:end].max())
+                    else:
+                        target_label = last_input_label
                     first_future_anomaly_time = ""
                     horizon_start_time = last_input_time
                     horizon_end_time = last_input_time
@@ -1120,6 +1133,8 @@ class CombinedSequencePipeline:
         print(f"Label mode       : {self.label_mode}")
         if self.uses_future_horizon:
             print(f"Future horizon   : {self.prediction_horizon_steps} steps")
+        elif self.label_mode == LABEL_MODE_INPUT_WINDOW:
+            print("Detection label  : max label within input window")
         else:
             print("Detection label  : last timestamp in each window")
 
