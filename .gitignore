@@ -58,6 +58,9 @@ task.md
 *.svg
 report/
 planning/
+reports/
+notebooks/
+experiments/
 
 # ==============================================================================
 # Virtual Environments
