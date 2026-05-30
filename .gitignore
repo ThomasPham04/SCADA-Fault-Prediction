@@ -23,6 +23,7 @@ prediction_results/
 fault_detector_model/
 results/
 reports/results/
+reports/
 sequence_training_results*/
 output*
 
