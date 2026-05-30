@@ -10,7 +10,7 @@
 
 ## 1. Purpose of This Report
 
-This document explains how the classifier models are built in the repository. It is intended as a source document for the model-building chapter of the capstone report. The focus is the supervised sequence-classification pipeline using the final 21-feature modeling contract, not the autoencoder path.
+This document explains how the classifier models are built in the repository. It is intended as a source document for the model-building chapter of the capstone report. The focus is the supervised sequence-classification pipeline using the final 21-feature modeling contract.
 
 The classifier task is formulated as early fault prediction from multivariate SCADA time-series windows. Each input sample is a fixed-length window of historical SCADA measurements containing 21 selected SCADA features. The model outputs one probability score:
 
@@ -74,8 +74,7 @@ python src/main.py prepare `
   --csv Dataset\processed\combined_dataset.csv `
   --feature-file results\feature_screening_per_event\final_21_features.csv `
   --expected-feature-count 21 `
-  --window-hours 24 `
-  --skip-autoencoder-export
+  --window-hours 24
 ```
 
 The `prepare` command uses:
@@ -103,8 +102,7 @@ The second stage trains the classifier models from the exported arrays:
 ```powershell
 python src/main.py train-sequences `
   --windows 24 `
-  --model lstm gru cnn_lstm cnn_gru `
-  --skip-autoencoders
+  --model lstm gru cnn_lstm cnn_gru
 ```
 
 The `train-sequences` command uses:
@@ -116,7 +114,7 @@ src/training/sequence_models.py
 src/training/sequence_metrics.py
 ```
 
-If `--model` is omitted, `train-sequences` defaults to all classifier models unless `--skip-classifiers` is used.
+If `--model` is omitted, `train-sequences` defaults to all classifier models.
 
 ---
 
@@ -253,7 +251,7 @@ H = 72 steps = 12 hours
 
 Therefore, the classifier is an early-warning model. It predicts whether a fault appears in the next 12 hours after the 24-hour input window.
 
-This is different from a same-timestamp detector. If the project wants detection at the final timestamp of the window, the repository must be run with `--label-mode detection` or `--label-mode last_timestamp`.
+The supported non-horizon alternative is `--label-mode input_window`, which labels a window positive when any input timestamp is positive.
 
 ---
 

@@ -1,10 +1,10 @@
-"""
-DataSplitter — data_pipeline.preprocessing.splitter
+﻿"""
+DataSplitter â€” data_pipeline.preprocessing.splitter
 Processes all 22 events into train/test splits following the CARE paper methodology.
 
 Supports two modes:
-  - Global: all events combined → one model  (original)
-  - Per-asset: events grouped by turbine → one model per asset  (new)
+  - Global: all events combined â†’ one model  (original)
+  - Per-asset: events grouped by turbine â†’ one model per asset  (new)
 """
 
 import numpy as np
@@ -55,7 +55,7 @@ class DataSplitter:
         """
         Process TRAIN data from ALL events (CARE methodology).
 
-        For each event: load train rows → engineer features → concatenate
+        For each event: load train rows â†’ engineer features â†’ concatenate
         into one large training array.
 
         Returns:
@@ -76,8 +76,8 @@ class DataSplitter:
             try:
                 df = self._loader.load_event_data(event_id)
                 # Keep only clean normal-production rows (status in NORMAL_STATUS).
-                # Service visits (3) and other states (5) would pollute the
-                # autoencoder's view of what normal sensor behaviour looks like.
+                # Service visits (3) and other states (5) are not normal
+                # production rows, so they are excluded from the train split.
                 df_all_train  = df[df["train_test"] == "train"]
                 df_train      = df_all_train[df_all_train["status_type_id"].isin(NORMAL_STATUS)].copy()
 
@@ -139,7 +139,7 @@ class DataSplitter:
         Process TEST (prediction) data from ALL events.
 
         Takes the train_test == 'prediction' portion.
-        Keeps ALL status types (including anomalies — do NOT filter).
+        Keeps ALL status types (including anomalies â€” do NOT filter).
 
         Args:
             farm_dir: Unused (kept for API compatibility).
@@ -210,7 +210,7 @@ class DataSplitter:
         val_ratio: float = 0.15,
     ) -> tuple:
         """
-        Temporal train/val split — takes the LAST val_ratio% as validation.
+        Temporal train/val split â€” takes the LAST val_ratio% as validation.
 
         Better than random split for time-series: preserves temporal ordering
         and avoids leakage from future into the past.
@@ -237,27 +237,6 @@ class DataSplitter:
 
     # ------------------------------------------------------------------
     # Per-csv helpers
-    # ------------------------------------------------------------------
-
-    def split_train_val_autoencoder(self, df: pd.DataFrame, val_ratio: float = 0.15):
-        """
-        Filter to clean normal rows then do a temporal train/val split.
-
-        Args:
-            df: Raw event DataFrame (all rows, all status values).
-            val_ratio: Fraction of normal rows reserved for validation.
-
-        Returns:
-            Tuple of (train_df, val_df) — both containing only normal
-            production rows from the train split, split temporally.
-        """
-        normal = df[(df["status_type_id"].isin(NORMAL_STATUS)) & (df["train_test"] == "train")].copy()
-        n = len(normal)
-        split = n - int(n * val_ratio)
-        return normal.iloc[:split], normal.iloc[split:]
-
-    # ------------------------------------------------------------------
-    # Per-asset helpers
     # ------------------------------------------------------------------
 
     def group_events_by_asset(self) -> dict:
@@ -292,7 +271,7 @@ class DataSplitter:
         event_ids: list,
     ) -> tuple:
         """
-        Process TRAIN data for a single asset — combines the training portions
+        Process TRAIN data for a single asset â€” combines the training portions
         of all events belonging to that asset.
 
         Args:
@@ -307,7 +286,7 @@ class DataSplitter:
         feature_cols   = None
         contributions  = {}
 
-        print(f"\n  Asset {asset_id} — processing {len(event_ids)} events for TRAIN")
+        print(f"\n  Asset {asset_id} â€” processing {len(event_ids)} events for TRAIN")
         for event_id in event_ids:
             event_label = self._ei.loc[event_id, "event_label"]
             try:
@@ -336,14 +315,14 @@ class DataSplitter:
                 print(f"    Event {event_id} ({event_label:7s}): {len(df_train)} train timesteps")
 
             except Exception as e:
-                print(f"    Event {event_id}: ERROR — {e}")
+                print(f"    Event {event_id}: ERROR â€” {e}")
 
         if not all_train_data:
             print(f"  Asset {asset_id}: no usable training data!")
             return None, None, {}
 
         combined = np.concatenate(all_train_data, axis=0)
-        print(f"  Asset {asset_id}: total train array → {combined.shape}")
+        print(f"  Asset {asset_id}: total train array â†’ {combined.shape}")
         return combined, feature_cols, contributions
 
     def process_asset_test(
@@ -366,7 +345,7 @@ class DataSplitter:
         """
         test_data = {}
 
-        print(f"\n  Asset {asset_id} — processing {len(event_ids)} events for TEST")
+        print(f"\n  Asset {asset_id} â€” processing {len(event_ids)} events for TEST")
         for event_id in event_ids:
             event_label = self._ei.loc[event_id, "event_label"]
             try:
@@ -399,7 +378,7 @@ class DataSplitter:
                 print(f"    Event {event_id} ({event_label:7s}): {len(df_pred)} test timesteps")
 
             except Exception as e:
-                print(f"    Event {event_id}: ERROR — {e}")
+                print(f"    Event {event_id}: ERROR â€” {e}")
 
         return test_data
 

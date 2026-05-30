@@ -65,8 +65,8 @@ class GroundTruth:
         True  = normal row  (label == 0)
         False = fault row   (label == 1)
 
-        This mirrors care2compare.py's normal_index used for training
-        the autoencoder (train only on normal rows).
+        This mirrors care2compare.py's normal_index convention for rows that
+        are considered normal.
 
         Args:
             df:       Full event DataFrame - must have status_type_id and train_test.

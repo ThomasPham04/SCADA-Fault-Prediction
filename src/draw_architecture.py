@@ -81,8 +81,8 @@ box(ax, 0.30, 3.55, 5.70, 1.70,
     bg=ORAN)
 
 box(ax, 7.00, 3.55, 5.70, 1.70,
-    "Autoencoder (Per-Asset)",
-    "LSTM-AE  /  GRU-AE  /  Dense-AE\nHuan luyen tren cua so binh thuong\nNguong: sweep F1 / phan vi 99",
+    "Canh bao tu classifier",
+    "Xac suat loi theo cua so chuoi\nNguong: quet F1 tren tap Val\nTong hop theo su kien bang max score",
     bg=RED)
 
 # branch arrows

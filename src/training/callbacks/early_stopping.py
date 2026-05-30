@@ -10,15 +10,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from tensorflow.keras import callbacks
 from config import RESULTS_DIR, EARLY_STOPPING_PATIENCE
 
-def get_autoencoder_callbacks(model_path: str, log_dir: str = None)-> list: 
-    """Standar callback set for autoencoder"""
-    if log_dir is None: 
-        log_dir = os.path.join(RESULTS_DIR, "autoencoder_global_logs")
-    return [
-        callbacks.ModelCheckpoint(filepath=model_path, monitor="val_loss",
-                                  save_best_only=True, mode='min', verbose=1)
-    ]
-
 def get_lstm_callbacks(model_path: str, log_dir: str = None) -> list:
     """Standard callback set for LSTM training."""
     if log_dir is None:

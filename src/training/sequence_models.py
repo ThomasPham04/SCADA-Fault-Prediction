@@ -1,6 +1,6 @@
 """
-sequence_models.py — training.sequence_models
-Keras model builders and training callbacks for classifiers and autoencoders.
+sequence_models.py - training.sequence_models
+Keras model builders and training callbacks for sequence classifiers.
 """
 
 from __future__ import annotations
@@ -145,100 +145,6 @@ def build_classifier_model(
     return model
 
 
-def build_autoencoder_model(
-    model_name: str,
-    input_shape: tuple,
-    encoder_units: int | None = None,
-    bottleneck_units: int | None = None,
-    learning_rate: float = 1e-3,
-    noise_stddev: float = 0.0,
-):
-    time_steps, feature_count = input_shape
-
-    # Paper defaults for dense_ae (Wind Farm A: 44→25→4→25→44)
-    if encoder_units is None:
-        encoder_units = 25 if model_name == "dense_ae" else 96
-    if bottleneck_units is None:
-        bottleneck_units = 4 if model_name == "dense_ae" else 48
-
-    inputs = layers.Input(shape=input_shape, name="input_sequence")
-    x = layers.GaussianNoise(noise_stddev)(inputs) if noise_stddev > 0.0 else inputs
-
-    if model_name == "lstm_ae":
-        x = layers.LSTM(encoder_units, return_sequences=True)(x)
-        x = layers.Dropout(0.20)(x)
-        x = layers.LSTM(bottleneck_units, return_sequences=False)(x)
-        x = layers.RepeatVector(time_steps)(x)
-        x = layers.LSTM(bottleneck_units, return_sequences=True)(x)
-        x = layers.Dropout(0.20)(x)
-        x = layers.LSTM(encoder_units, return_sequences=True)(x)
-    elif model_name == "gru_ae":
-        x = layers.GRU(encoder_units, return_sequences=True)(x)
-        x = layers.Dropout(0.20)(x)
-        x = layers.GRU(bottleneck_units, return_sequences=False)(x)
-        x = layers.RepeatVector(time_steps)(x)
-        x = layers.GRU(bottleneck_units, return_sequences=True)(x)
-        x = layers.Dropout(0.20)(x)
-        x = layers.GRU(encoder_units, return_sequences=True)(x)
-    elif model_name == "dense_ae":
-        # Pointwise MLP: each timestep processed independently (no temporal dependencies).
-        # Paper architecture for Wind Farm A: input→25→4→25→output
-        x = layers.TimeDistributed(layers.Dense(encoder_units, activation="relu"))(x)
-        x = layers.TimeDistributed(layers.Dense(bottleneck_units, activation="relu"))(x)
-        x = layers.TimeDistributed(layers.Dense(encoder_units, activation="relu"))(x)
-    else:
-        raise ValueError(f"Unsupported autoencoder model: {model_name!r}")
-
-    outputs = layers.TimeDistributed(layers.Dense(feature_count))(x)
-    model = models.Model(inputs=inputs, outputs=outputs, name=model_name)
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss="mse",
-        metrics=["mae"],
-    )
-    return model
-
-
-def build_threshold_nn(
-    input_dim: int,
-    hidden_units: int = 23,
-    learning_rate: float = 1e-3,
-):
-    """Small MLP regression: input features → expected L2-norm reconstruction error."""
-    model = tf.keras.Sequential(
-        [
-            layers.Input(shape=(input_dim,)),
-            layers.Dense(hidden_units, activation="relu"),
-            layers.Dense(1),
-        ],
-        name="threshold_nn",
-    )
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss="mse",
-    )
-    return model
-
-
-def threshold_nn_callbacks(model_path: Path, patience: int = 3):
-    return [
-        callbacks.EarlyStopping(
-            monitor="val_loss",
-            mode="min",
-            patience=patience,
-            restore_best_weights=True,
-            verbose=0,
-        ),
-        callbacks.ModelCheckpoint(
-            filepath=str(model_path),
-            monitor="val_loss",
-            mode="min",
-            save_best_only=True,
-            verbose=0,
-        ),
-    ]
-
-
 def classifier_callbacks(model_path: Path):
     return [
         callbacks.EarlyStopping(
@@ -260,33 +166,6 @@ def classifier_callbacks(model_path: Path):
             filepath=str(model_path),
             monitor="val_pr_auc",
             mode="max",
-            save_best_only=True,
-            verbose=0,
-        ),
-    ]
-
-
-def autoencoder_callbacks(model_path: Path, patience: int = 3):
-    return [
-        callbacks.EarlyStopping(
-            monitor="val_loss",
-            mode="min",
-            patience=patience,
-            restore_best_weights=True,
-            verbose=1,
-        ),
-        callbacks.ReduceLROnPlateau(
-            monitor="val_loss",
-            mode="min",
-            factor=0.5,
-            patience=2,
-            min_lr=1e-5,
-            verbose=1,
-        ),
-        callbacks.ModelCheckpoint(
-            filepath=str(model_path),
-            monitor="val_loss",
-            mode="min",
             save_best_only=True,
             verbose=0,
         ),

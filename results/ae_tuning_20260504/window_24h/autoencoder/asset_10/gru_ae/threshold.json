@@ -1,6 +1,0 @@
-{
-  "asset_id": 10,
-  "model_name": "gru_ae",
-  "selected_threshold": 1.398543357849121,
-  "threshold_source": "validation_f1_sweep"
-}

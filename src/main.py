@@ -6,12 +6,11 @@ Usage examples:
     # 1. Prepare windowed sequence exports from one combined CSV
     python src/main.py prepare --csv df_final.csv --feature-file final_features.csv --window-hours 24
 
-    # 2. Train sequence classifiers and per-asset autoencoders from those exports
+    # 2. Train sequence classifiers from those exports
     python src/main.py train-sequences --windows 24
 
-    # 3. Train a single model (auto-routes to classifier or autoencoder)
+    # 3. Train specific classifier models
     python src/main.py train-sequences --windows 24 --model lstm
-    python src/main.py train-sequences --windows 24 --model lstm gru_ae
 """
 
 from __future__ import annotations
@@ -84,14 +83,12 @@ def run_prepare_care(args: argparse.Namespace) -> None:
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
         skip_classifier=args.skip_classifier_export,
-        skip_autoencoder=args.skip_autoencoder_export,
-        skip_per_asset_ae=args.skip_per_asset_ae,
     )
     pipeline.run()
 
 
 def run_prepare(args: argparse.Namespace) -> None:
-    """Prepare classifier and autoencoder exports from a combined CSV."""
+    """Prepare classifier exports from a combined CSV."""
     from config import STRIDE as _DEFAULT_STRIDE, TIME_RESOLUTION
     stride = args.stride if args.stride is not None else _DEFAULT_STRIDE
     prediction_horizon_steps = prediction_horizon_steps_from_hours(
@@ -133,14 +130,12 @@ def run_prepare(args: argparse.Namespace) -> None:
         run_window_search=not args.skip_window_search,
         random_seed=args.seed,
         skip_classifier=args.skip_classifier_export,
-        skip_autoencoder=args.skip_autoencoder_export,
-        skip_per_asset_ae=args.skip_per_asset_ae,
     )
     pipeline.run()
 
 
 def run_train_sequences(args: argparse.Namespace) -> None:
-    """Train global sequence classifiers and per-asset sequence autoencoders."""
+    """Train global sequence classifiers."""
     from config import PROCESSED_DATA_DIR, RESULTS_DIR
     from training.sequence_model_trainer import SequenceModelTrainer, SequenceTrainingConfig
 
@@ -148,26 +143,21 @@ def run_train_sequences(args: argparse.Namespace) -> None:
     results_dir = args.results_dir or os.path.join(RESULTS_DIR, "sequence_training_results")
 
     _classifier_choices = {"lstm", "gru", "cnn_lstm", "cnn_gru"}
-    _autoencoder_choices = {"lstm_ae", "gru_ae", "dense_ae"}
 
     if args.model:
-        unknown = [m for m in args.model if m not in _classifier_choices | _autoencoder_choices]
+        unknown = [m for m in args.model if m not in _classifier_choices]
         if unknown:
             raise SystemExit(f"Unknown model(s): {unknown}. Choose from: "
-                             f"{sorted(_classifier_choices | _autoencoder_choices)}")
-        classifier_models = [m for m in args.model if m in _classifier_choices]
-        autoencoder_models = [m for m in args.model if m in _autoencoder_choices]
+                             f"{sorted(_classifier_choices)}")
+        classifier_models = list(args.model)
     else:
-        classifier_models = [] if args.skip_classifiers else args.classifier_models
-        autoencoder_models = [] if args.skip_autoencoders else args.autoencoder_models
+        classifier_models = args.classifier_models
 
     config = SequenceTrainingConfig(
         exports_dir=exports_dir,
         results_dir=results_dir,
         windows=args.windows,
         classifier_models=classifier_models,
-        autoencoder_models=autoencoder_models,
-        asset_filter=args.assets,
         random_seed=args.seed,
         overwrite=args.overwrite,
         save_predictions=not args.no_save_predictions,
@@ -179,16 +169,6 @@ def run_train_sequences(args: argparse.Namespace) -> None:
         classifier_loss=args.classifier_loss,
         classifier_focal_gamma=args.classifier_focal_gamma,
         classifier_focal_alpha=args.classifier_focal_alpha,
-        autoencoder_epochs=args.autoencoder_epochs,
-        autoencoder_batch_size=args.autoencoder_batch_size,
-        autoencoder_scope=args.autoencoder_scope,
-        autoencoder_learning_rate=args.ae_lr,
-        autoencoder_noise=args.ae_noise,
-        autoencoder_use_adaptive_threshold=args.ae_adaptive_threshold,
-        autoencoder_gamma=args.ae_gamma,
-        autoencoder_threshold_nn_units=args.ae_threshold_nn_units,
-        autoencoder_encoder_units=args.ae_encoder_units,
-        autoencoder_bottleneck_units=args.ae_bottleneck_units,
     )
     SequenceModelTrainer(config).run()
 
@@ -198,13 +178,12 @@ def add_label_mode_flag(parser: argparse.ArgumentParser) -> None:
         "--label-mode",
         type=str,
         default="future_horizon",
-        choices=["future_horizon", "last_timestamp", "detection", "input_window"],
+        choices=["future_horizon", "input_window"],
         help=(
             "Window label target. 'future_horizon' preserves the original "
             "prediction task: any fault after the input window within H steps. "
-            "'last_timestamp'/'detection' labels each window by its final "
-            "input timestamp. 'input_window' labels a window positive when any "
-            "input timestamp is positive."
+            "'input_window' labels a window positive when any input timestamp "
+            "is positive."
         ),
     )
 
@@ -320,39 +299,22 @@ def add_combined_csv_flags(parser: argparse.ArgumentParser) -> None:
         "--skip-classifier-export",
         action="store_true",
         default=False,
-        help="Skip exporting classifier windows (saves disk space when only AE training is needed).",
-    )
-    parser.add_argument(
-        "--skip-autoencoder-export",
-        action="store_true",
-        default=False,
-        help="Skip all autoencoder exports (use this when preparing classifier data only).",
-    )
-    parser.add_argument(
-        "--skip-per-asset-ae",
-        action="store_true",
-        default=False,
-        help="Skip per-asset autoencoder export; only global AE data is written.",
+        help="Skip exporting classifier windows.",
     )
 
 
 def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
     classifier_choices = ["lstm", "gru", "cnn_lstm", "cnn_gru"]
-    autoencoder_choices = ["lstm_ae", "gru_ae", "dense_ae"]
-    all_model_choices = classifier_choices + autoencoder_choices
     parser.add_argument(
         "--model",
         type=str,
         nargs="+",
         default=None,
-        choices=all_model_choices,
+        choices=classifier_choices,
         metavar="MODEL",
         help=(
-            f"Train only these model(s). Automatically routes classifiers "
-            f"({', '.join(classifier_choices)}) and autoencoders "
-            f"({', '.join(autoencoder_choices)}). "
-            f"Overrides --classifier-models, --autoencoder-models, "
-            f"--skip-classifiers, and --skip-autoencoders."
+            f"Train only these classifier model(s): {', '.join(classifier_choices)}. "
+            "Overrides --classifier-models."
         ),
     )
     parser.add_argument(
@@ -385,21 +347,6 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
         choices=classifier_choices,
         help="Supervised sequence classifiers to train.",
     )
-    parser.add_argument(
-        "--autoencoder-models",
-        type=str,
-        nargs="+",
-        default=autoencoder_choices,
-        choices=autoencoder_choices,
-        help="Per-asset sequence autoencoder architectures to train.",
-    )
-    parser.add_argument(
-        "--assets",
-        type=int,
-        nargs="+",
-        default=None,
-        help="Restrict autoencoder training to specific asset IDs.",
-    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--overwrite",
@@ -410,16 +357,6 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
         "--no-save-predictions",
         action="store_true",
         help="Skip verbose prediction CSV outputs.",
-    )
-    parser.add_argument(
-        "--skip-classifiers",
-        action="store_true",
-        help="Do not train supervised classifiers.",
-    )
-    parser.add_argument(
-        "--skip-autoencoders",
-        action="store_true",
-        help="Do not train per-asset sequence autoencoders.",
     )
     parser.add_argument("--classifier-epochs", type=int, default=25)
     parser.add_argument("--classifier-batch-size", type=int, default=256)
@@ -465,84 +402,6 @@ def add_sequence_training_flags(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=0.75,
         help="Positive-class alpha for focal loss when --classifier-loss focal is used.",
-    )
-    parser.add_argument("--autoencoder-epochs", type=int, default=30)
-    parser.add_argument("--autoencoder-batch-size", type=int, default=128)
-    parser.add_argument(
-        "--autoencoder-scope",
-        type=str,
-        default="per_asset",
-        choices=["per_asset", "global", "both"],
-        help=(
-            "Autoencoder training scope. 'per_asset' trains one model per turbine, "
-            "'global' trains one pooled model across turbines, and 'both' runs both."
-        ),
-    )
-    parser.add_argument(
-        "--ae-lr",
-        type=float,
-        default=1e-3,
-        metavar="LR",
-        help=(
-            "Adam learning rate for autoencoder models. "
-            "Paper value for Wind Farm A dense_ae: 0.0018 (default: 0.001)."
-        ),
-    )
-    parser.add_argument(
-        "--ae-noise",
-        type=float,
-        default=0.0,
-        metavar="STDDEV",
-        help=(
-            "Gaussian noise stddev injected into AE input during training. "
-            "Paper value for Wind Farm A: 0.06 (default: 0.0 = disabled)."
-        ),
-    )
-    parser.add_argument(
-        "--ae-adaptive-threshold",
-        action="store_true",
-        help=(
-            "Use adaptive threshold (NN regression + gamma) instead of F1 sweep. "
-            "Paper approach for Wind Farm A. Recommended with dense_ae."
-        ),
-    )
-    parser.add_argument(
-        "--ae-gamma",
-        type=float,
-        default=0.344,
-        metavar="G",
-        help=(
-            "Sensitivity parameter for adaptive threshold: "
-            "anomaly if RE > expected_RE + gamma. Paper value: 0.344 (default)."
-        ),
-    )
-    parser.add_argument(
-        "--ae-threshold-nn-units",
-        type=int,
-        default=23,
-        metavar="N",
-        help="Hidden units in the adaptive threshold NN. Paper value: 23 (default).",
-    )
-    parser.add_argument(
-        "--ae-encoder-units",
-        type=int,
-        default=None,
-        metavar="N",
-        help=(
-            "Encoder hidden units for the autoencoder. "
-            "dense_ae default: 25 (paper Wind Farm A). lstm_ae/gru_ae default: 96."
-        ),
-    )
-    parser.add_argument(
-        "--ae-bottleneck-units",
-        type=int,
-        default=None,
-        metavar="N",
-        help=(
-            "Bottleneck hidden units for the autoencoder. "
-            "dense_ae default: 4 (paper Wind Farm A, 11:1 ratio for 44 features). "
-            "For 88 features consider 8 to keep a similar 11:1 ratio."
-        ),
     )
 
 
@@ -706,18 +565,6 @@ def add_prepare_care_flags(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Skip exporting classifier windows.",
     )
-    parser.add_argument(
-        "--skip-autoencoder-export",
-        action="store_true",
-        default=False,
-        help="Skip all autoencoder exports.",
-    )
-    parser.add_argument(
-        "--skip-per-asset-ae",
-        action="store_true",
-        default=False,
-        help="Skip per-asset autoencoder export; only global AE data is written.",
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -728,7 +575,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Typical workflow (CARE dataset):\n"
             "  1. python src/main.py prepare-care\n"
-            "  2. python src/main.py train-sequences --skip-classifiers\n"
+            "  2. python src/main.py train-sequences --windows 24\n"
         ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -747,7 +594,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     train_sequences_parser = subparsers.add_parser(
         "train-sequences",
-        help="Train sequence classifiers and autoencoders from exports.",
+        help="Train sequence classifiers from exports.",
     )
     add_sequence_training_flags(train_sequences_parser)
 

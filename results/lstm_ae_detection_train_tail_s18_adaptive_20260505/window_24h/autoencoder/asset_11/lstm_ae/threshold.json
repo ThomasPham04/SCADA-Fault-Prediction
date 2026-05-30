@@ -1,6 +1,0 @@
-{
-  "asset_id": 11,
-  "model_name": "lstm_ae",
-  "selected_threshold": 0.344,
-  "threshold_source": "adaptive_threshold_nn"
-}

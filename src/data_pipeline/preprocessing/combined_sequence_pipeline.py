@@ -16,21 +16,20 @@ from typing import Iterable, Sequence
 import numpy as np
 import pandas as pd
 
-from config import NORMAL_STATUS, PROCESSED_DATA_DIR, TIME_RESOLUTION, VAL_SIZE
+from config import (
+    INPUT_WINDOW_HOURS,
+    NORMAL_STATUS,
+    PREDICTION_HORIZON_STEPS as _DEFAULT_HORIZON_STEPS,
+    PROCESSED_DATA_DIR,
+    STRIDE,
+    TIME_RESOLUTION,
+    VAL_SIZE,
+)
 
-try:
-    from problem_config import load_problem_config
-
-    _PROBLEM_CONFIG = load_problem_config()
-    DEFAULT_SELECTED_WINDOWS_HOURS = [int(_PROBLEM_CONFIG.time_series.input_window_hours)]
-    DEFAULT_WINDOW_CANDIDATES_HOURS = [int(_PROBLEM_CONFIG.time_series.input_window_hours)]
-    DEFAULT_PREDICTION_HORIZON_STEPS = int(_PROBLEM_CONFIG.horizon)
-    DEFAULT_STRIDE_STEPS = int(_PROBLEM_CONFIG.stride)
-except Exception:
-    DEFAULT_SELECTED_WINDOWS_HOURS = [24]
-    DEFAULT_WINDOW_CANDIDATES_HOURS = [24]
-    DEFAULT_PREDICTION_HORIZON_STEPS = 72
-    DEFAULT_STRIDE_STEPS = 6
+DEFAULT_SELECTED_WINDOWS_HOURS = [INPUT_WINDOW_HOURS]
+DEFAULT_WINDOW_CANDIDATES_HOURS = [INPUT_WINDOW_HOURS]
+DEFAULT_PREDICTION_HORIZON_STEPS = _DEFAULT_HORIZON_STEPS
+DEFAULT_STRIDE_STEPS = STRIDE
 
 
 DEFAULT_TOP_K_WINDOWS = 1
@@ -40,15 +39,11 @@ DEFAULT_PROBE_MAX_TRAIN_WINDOWS = 60_000
 DEFAULT_VALIDATION_SOURCE = "train_tail"
 VALIDATION_SOURCES = {"train_tail", "prediction"}
 LABEL_MODE_FUTURE_HORIZON = "future_horizon"
-LABEL_MODE_LAST_TIMESTAMP = "last_timestamp"
 LABEL_MODE_INPUT_WINDOW = "input_window"
 LABEL_MODE_ALIASES = {
     "future_horizon": LABEL_MODE_FUTURE_HORIZON,
     "prediction": LABEL_MODE_FUTURE_HORIZON,
     "horizon": LABEL_MODE_FUTURE_HORIZON,
-    "last_timestamp": LABEL_MODE_LAST_TIMESTAMP,
-    "detection": LABEL_MODE_LAST_TIMESTAMP,
-    "last": LABEL_MODE_LAST_TIMESTAMP,
     "input_window": LABEL_MODE_INPUT_WINDOW,
     "window": LABEL_MODE_INPUT_WINDOW,
     "window_max": LABEL_MODE_INPUT_WINDOW,
@@ -56,7 +51,6 @@ LABEL_MODE_ALIASES = {
 }
 LABEL_DEFINITIONS = {
     LABEL_MODE_FUTURE_HORIZON: "future_horizon_any_positive_after_input_window",
-    LABEL_MODE_LAST_TIMESTAMP: "last_timestamp_label_at_window_end",
     LABEL_MODE_INPUT_WINDOW: "input_window_any_positive_within_window",
 }
 
@@ -107,7 +101,7 @@ def empty_split_frame(columns: list[str]) -> pd.DataFrame:
 
 class CombinedSequencePipeline:
     """
-    Prepare classifier and autoencoder sequence exports from one combined CSV.
+    Prepare classifier sequence exports from one combined CSV.
 
     The input CSV must preserve the original logical boundaries with asset_id
     and sequence_id. Windows are always built inside each (asset_id,
@@ -138,8 +132,6 @@ class CombinedSequencePipeline:
         probe_max_train_windows: int = DEFAULT_PROBE_MAX_TRAIN_WINDOWS,
         random_seed: int = 42,
         skip_classifier: bool = False,
-        skip_autoencoder: bool = False,
-        skip_per_asset_ae: bool = False,
     ) -> None:
         self.csv_path = Path(csv_path)
         self.feature_file = Path(feature_file) if feature_file else None
@@ -169,8 +161,6 @@ class CombinedSequencePipeline:
         self.probe_max_train_windows = probe_max_train_windows
         self.random_seed = random_seed
         self.skip_classifier = skip_classifier
-        self.skip_autoencoder = skip_autoencoder
-        self.skip_per_asset_ae = skip_per_asset_ae
 
         if self.scaler_type not in ("minmax", "standard"):
             raise ValueError("scaler_type must be 'minmax' or 'standard'")
@@ -508,10 +498,7 @@ class CombinedSequencePipeline:
                     horizon_start_time = timestamps[end]
                     horizon_end_time = timestamps[horizon_end - 1]
                 else:
-                    if self.label_mode == LABEL_MODE_INPUT_WINDOW:
-                        target_label = int(labels[start:end].max())
-                    else:
-                        target_label = last_input_label
+                    target_label = int(labels[start:end].max())
                     first_future_anomaly_time = ""
                     horizon_start_time = last_input_time
                     horizon_end_time = last_input_time
@@ -545,46 +532,6 @@ class CombinedSequencePipeline:
             return empty_x, empty_y, pd.DataFrame(columns=meta_columns)
 
         return np.stack(X_list).astype(np.float32), np.asarray(y_list, dtype=np.int8), pd.DataFrame(meta_rows)
-
-    def extract_contiguous_normal_runs(self, df: pd.DataFrame) -> pd.DataFrame:
-        if df.empty:
-            out = df.copy()
-            out["run_key"] = pd.Series(dtype=str)
-            return out
-
-        expected_gap = pd.Timedelta(minutes=self.time_resolution_minutes)
-        run_frames = []
-
-        for (_, _), group in df.groupby(["asset_id", "sequence_id"], sort=False):
-            group = group.sort_values("time_stamp", kind="mergesort").copy()
-            # Require both label==0 (no fault event) AND status_type_id in normal set
-            # (excludes maintenance, service, standby rows from autoencoder training)
-            normal_mask = group["label"].eq(0) & group["status_type_id"].isin(self.normal_statuses)
-            if not normal_mask.any():
-                continue
-
-            prev_normal = normal_mask.shift(fill_value=False)
-            gap_ok = group["time_stamp"].diff().eq(expected_gap)
-            start_new_run = normal_mask & (~prev_normal | ~gap_ok)
-            run_ids = start_new_run.cumsum()
-
-            normal_rows = group.loc[normal_mask].copy()
-            normal_rows["run_key"] = [
-                f"{asset}_{sequence}_{int(run_id)}"
-                for asset, sequence, run_id in zip(
-                    normal_rows["asset_id"],
-                    normal_rows["sequence_id"],
-                    run_ids.loc[normal_mask].to_numpy(),
-                )
-            ]
-            run_frames.append(normal_rows)
-
-        if not run_frames:
-            out = df.iloc[0:0].copy()
-            out["run_key"] = pd.Series(dtype=str)
-            return out
-
-        return pd.concat(run_frames, ignore_index=True)
 
     @staticmethod
     def compute_class_weights(y: np.ndarray) -> dict:
@@ -864,213 +811,6 @@ class CombinedSequencePipeline:
             "test_windows": int(len(X_test)),
         }
 
-    def export_autoencoder_data(
-        self,
-        train_df: pd.DataFrame,
-        val_df: pd.DataFrame,
-        test_df: pd.DataFrame,
-        feature_cols: list[str],
-        window_hours: int,
-        output_dir: Path,
-        scalers: dict,
-    ) -> dict:
-        autoencoder_dir = output_dir / "autoencoder"
-        autoencoder_dir.mkdir(parents=True, exist_ok=True)
-
-        window_steps = self.window_steps_from_hours(window_hours)
-        normal_train_df = self.extract_contiguous_normal_runs(train_df)
-        normal_val_df = self.extract_contiguous_normal_runs(val_df)
-        summary = {}
-
-        X_train_global, y_train_global, train_meta_global = self.build_windows(
-            normal_train_df,
-            feature_cols,
-            window_steps,
-            group_cols=("asset_id", "run_key"),
-            split_name="train_normal_global",
-        )
-        X_val_global, y_val_global, val_meta_global = self.build_windows(
-            normal_val_df,
-            feature_cols,
-            window_steps,
-            group_cols=("asset_id", "run_key"),
-            split_name="val_normal_global",
-        )
-
-        if len(y_train_global) and int(y_train_global.max()) != 0:
-            raise ValueError("Global autoencoder train windows contain anomalous labels.")
-        if len(y_val_global) and int(y_val_global.max()) != 0:
-            raise ValueError("Global autoencoder val windows contain anomalous labels.")
-
-        global_dir = autoencoder_dir / "global"
-        global_dir.mkdir(parents=True, exist_ok=True)
-        np.save(global_dir / "X_train.npy", X_train_global)
-        np.save(global_dir / "X_val.npy", X_val_global)
-        train_meta_global.to_csv(global_dir / "train_meta.csv", index=False)
-        val_meta_global.to_csv(global_dir / "val_meta.csv", index=False)
-
-        import joblib
-        joblib.dump(scalers, global_dir / "scalers.pkl")
-
-        global_test_dir = global_dir / "test_by_sequence"
-        global_test_dir.mkdir(parents=True, exist_ok=True)
-
-        saved_global_test_sequences = 0
-        for (asset_id, sequence_id), sequence_rows in test_df.groupby(
-            ["asset_id", "sequence_id"],
-            sort=False,
-        ):
-            X_seq, y_seq, meta_seq = self.build_windows(
-                sequence_rows,
-                feature_cols,
-                window_steps,
-                group_cols=("asset_id", "sequence_id"),
-                split_name="test",
-            )
-            if len(X_seq) == 0:
-                continue
-
-            asset_test_dir = global_test_dir / f"asset_{asset_id}"
-            asset_test_dir.mkdir(parents=True, exist_ok=True)
-            np.savez_compressed(
-                asset_test_dir / f"sequence_{sequence_id}.npz",
-                X=X_seq,
-                y=y_seq,
-                end_time=meta_seq["end_time"].to_numpy(),
-                horizon_start_time=meta_seq["horizon_start_time"].to_numpy(),
-                horizon_end_time=meta_seq["horizon_end_time"].to_numpy(),
-                first_future_anomaly_time=meta_seq["first_future_anomaly_time"].to_numpy(),
-                target_label=meta_seq["target_label"].to_numpy(dtype=np.int8),
-                last_label=meta_seq["target_label"].to_numpy(dtype=np.int8),
-                asset_id=np.asarray([asset_id] * len(X_seq)),
-                sequence_id=np.asarray([sequence_id] * len(X_seq)),
-            )
-            saved_global_test_sequences += 1
-
-        global_assets = sorted({str(asset_id) for asset_id in scalers.keys()})
-        save_metadata(
-            global_dir / "metadata.json",
-            {
-                "scope": "global",
-                "asset_ids": global_assets,
-                "asset_count": int(len(global_assets)),
-                "source_csv": str(self.csv_path),
-                "window_hours": int(window_hours),
-                "window_steps": int(window_steps),
-                "stride_steps": int(self.stride_steps),
-                "prediction_horizon_steps": int(self.prediction_horizon_steps),
-                "label_mode": self.label_mode,
-                "label_definition": self.label_definition,
-                "validation_source": self.validation_source,
-                "prediction_val_ratio": self.prediction_val_ratio,
-                "scaler_type": self.scaler_type,
-                "feature_cols": feature_cols,
-                "train_shape": list(X_train_global.shape),
-                "val_shape": list(X_val_global.shape),
-                "saved_test_sequences": int(saved_global_test_sequences),
-            },
-        )
-        summary["global"] = {
-            "train_windows": int(len(X_train_global)),
-            "val_windows": int(len(X_val_global)),
-            "test_sequences": int(saved_global_test_sequences),
-        }
-
-        if self.skip_per_asset_ae:
-            print("  [skip] per-asset autoencoder export skipped (--skip-per-asset-ae)")
-            return summary
-
-        for asset_id in scalers.keys():
-            asset_dir = autoencoder_dir / f"asset_{asset_id}"
-            asset_dir.mkdir(parents=True, exist_ok=True)
-
-            asset_train = normal_train_df[normal_train_df["asset_id"] == asset_id].copy()
-            asset_val = normal_val_df[normal_val_df["asset_id"] == asset_id].copy()
-            asset_test = test_df[test_df["asset_id"] == asset_id].copy()
-
-            X_train, y_train, _ = self.build_windows(
-                asset_train,
-                feature_cols,
-                window_steps,
-                group_cols=("asset_id", "run_key"),
-                split_name="train_normal",
-            )
-            X_val, y_val, _ = self.build_windows(
-                asset_val,
-                feature_cols,
-                window_steps,
-                group_cols=("asset_id", "run_key"),
-                split_name="val_normal",
-            )
-
-            if len(y_train) and int(y_train.max()) != 0:
-                raise ValueError(f"Autoencoder train windows for asset {asset_id} contain anomalous labels.")
-            if len(y_val) and int(y_val.max()) != 0:
-                raise ValueError(f"Autoencoder val windows for asset {asset_id} contain anomalous labels.")
-
-            np.save(asset_dir / "X_train.npy", X_train)
-            np.save(asset_dir / "X_val.npy", X_val)
-            joblib.dump(scalers[asset_id], asset_dir / "scaler.pkl")
-
-            test_by_sequence_dir = asset_dir / "test_by_sequence"
-            test_by_sequence_dir.mkdir(parents=True, exist_ok=True)
-
-            saved_test_sequences = 0
-            for sequence_id, sequence_rows in asset_test.groupby("sequence_id", sort=False):
-                X_seq, y_seq, meta_seq = self.build_windows(
-                    sequence_rows,
-                    feature_cols,
-                    window_steps,
-                    group_cols=("asset_id", "sequence_id"),
-                    split_name="test",
-                )
-                if len(X_seq) == 0:
-                    continue
-
-                np.savez_compressed(
-                    test_by_sequence_dir / f"sequence_{sequence_id}.npz",
-                    X=X_seq,
-                    y=y_seq,
-                    end_time=meta_seq["end_time"].to_numpy(),
-                    horizon_start_time=meta_seq["horizon_start_time"].to_numpy(),
-                    horizon_end_time=meta_seq["horizon_end_time"].to_numpy(),
-                    first_future_anomaly_time=meta_seq["first_future_anomaly_time"].to_numpy(),
-                    target_label=meta_seq["target_label"].to_numpy(dtype=np.int8),
-                    last_label=meta_seq["target_label"].to_numpy(dtype=np.int8),
-                    asset_id=np.asarray([asset_id] * len(X_seq)),
-                    sequence_id=np.asarray([sequence_id] * len(X_seq)),
-                )
-                saved_test_sequences += 1
-
-            save_metadata(
-                asset_dir / "metadata.json",
-                {
-                    "asset_id": str(asset_id),
-                    "source_csv": str(self.csv_path),
-                    "window_hours": int(window_hours),
-                    "window_steps": int(window_steps),
-                    "stride_steps": int(self.stride_steps),
-                    "prediction_horizon_steps": int(self.prediction_horizon_steps),
-                    "label_mode": self.label_mode,
-                    "label_definition": self.label_definition,
-                    "validation_source": self.validation_source,
-                    "prediction_val_ratio": self.prediction_val_ratio,
-                    "scaler_type": self.scaler_type,
-                    "feature_cols": feature_cols,
-                    "train_shape": list(X_train.shape),
-                    "val_shape": list(X_val.shape),
-                    "saved_test_sequences": int(saved_test_sequences),
-                },
-            )
-
-            summary[str(asset_id)] = {
-                "train_windows": int(len(X_train)),
-                "val_windows": int(len(X_val)),
-                "test_sequences": int(saved_test_sequences),
-            }
-
-        return summary
-
     def _resolve_windows(self, train_df: pd.DataFrame, val_df: pd.DataFrame, feature_cols: list[str]) -> tuple[list[int], pd.DataFrame]:
         if self.selected_windows_hours:
             rows = [
@@ -1133,10 +873,8 @@ class CombinedSequencePipeline:
         print(f"Label mode       : {self.label_mode}")
         if self.uses_future_horizon:
             print(f"Future horizon   : {self.prediction_horizon_steps} steps")
-        elif self.label_mode == LABEL_MODE_INPUT_WINDOW:
-            print("Detection label  : max label within input window")
         else:
-            print("Detection label  : last timestamp in each window")
+            print("Detection label  : max label within input window")
 
         train_df, val_df, test_df = self.split_train_val_test_by_sequence(prepared_df)
         split_summary = self.summarize_split_rows(train_df, val_df, test_df)
@@ -1197,24 +935,10 @@ class CombinedSequencePipeline:
                     window_dir,
                     scalers,
                 )
-            if self.skip_autoencoder:
-                print("  [skip] autoencoder export skipped (--skip-autoencoder-export)")
-                autoencoder_summary = {}
-            else:
-                autoencoder_summary = self.export_autoencoder_data(
-                    train_df_sc,
-                    val_df_sc,
-                    test_df_sc,
-                    feature_cols,
-                    window_hours,
-                    window_dir,
-                    scalers,
-                )
             export_summaries.append(
                 {
                     "window_hours": int(window_hours),
                     "classifier": classifier_summary,
-                    "autoencoder": autoencoder_summary,
                 }
             )
 

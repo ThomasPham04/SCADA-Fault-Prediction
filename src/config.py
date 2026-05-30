@@ -34,12 +34,10 @@ EXPERIMENTS_DIR = os.path.join(BASE_DIR, "experiments")
 # Time resolution (in minutes)
 TIME_RESOLUTION = 10
 
-# Prediction window (in hours)
-PREDICTION_WINDOW_HOURS = 48
-
-# Number of timesteps in prediction window
-# 48 hours * 60 minutes / 10 minutes = 288 timesteps
-SEQUENCE_LENGTH = int(PREDICTION_WINDOW_HOURS * 60 / TIME_RESOLUTION)
+# Classifier sequence defaults
+INPUT_WINDOW_HOURS = 24                                          # input window size
+PREDICTION_HORIZON_STEPS = 72                                    # 72 × 10 min = 12 h ahead
+SEQUENCE_LENGTH = int(INPUT_WINDOW_HOURS * 60 / TIME_RESOLUTION) # 144 timesteps
 
 # Features to exclude (non-sensor columns)
 EXCLUDE_COLUMNS = ['time_stamp', 'asset_id', 'id', 'train_test', 'sequence_id', 'label']

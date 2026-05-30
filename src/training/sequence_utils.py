@@ -1,7 +1,7 @@
 """
-sequence_utils.py — training.sequence_utils
+sequence_utils.py - training.sequence_utils
 General-purpose helpers: seeding, TF cleanup, JSON I/O, model persistence,
-history formatting, and reconstruction scoring.
+and history formatting.
 """
 
 from __future__ import annotations
@@ -80,72 +80,3 @@ def save_model_summary(model, path: Path) -> None:
     buf = io.StringIO()
     model.summary(print_fn=lambda line: buf.write(line + "\n"))
     Path(path).write_text(buf.getvalue(), encoding="utf-8")
-
-
-def reconstruction_scores(model, X, batch_size: int) -> np.ndarray:
-    """Mean per-timestep L2-norm of reconstruction error, shape (N,)."""
-    X_arr = np.asarray(X, dtype=np.float32)
-    recon = model.predict(X_arr, batch_size=batch_size, verbose=0)
-    # L2-norm per timestep: sqrt(sum of squared errors over features), then mean over timesteps
-    per_ts_l2 = np.sqrt(np.sum(np.square(X_arr - recon), axis=2))  # (N, T)
-    return np.mean(per_ts_l2, axis=1).astype(np.float32)  # (N,)
-
-
-def per_timestep_l2_scores(model, X, batch_size: int) -> np.ndarray:
-    """Per-timestep L2-norm of reconstruction error, shape (N, T)."""
-    X_arr = np.asarray(X, dtype=np.float32)
-    recon = model.predict(X_arr, batch_size=batch_size, verbose=0)
-    return np.sqrt(np.sum(np.square(X_arr - recon), axis=2)).astype(np.float32)
-
-
-def compute_ewma_scores(
-    raw_errors: np.ndarray,
-    alpha: float,
-    init_value: float | None = None,
-) -> np.ndarray:
-    """Apply EWMA smoothing over an ordered sequence of reconstruction errors.
-
-    Parameters
-    ----------
-    raw_errors:
-        1-D array of per-window reconstruction errors in chronological order.
-    alpha:
-        Smoothing factor in (0, 1).  Smaller → longer memory, slower reaction.
-    init_value:
-        Seed for the EWMA.  When None the first error is used directly
-        (standard EWMA).  Pass the median of normal validation errors to avoid
-        a cold-start spike at the beginning of a sequence.
-
-    Returns
-    -------
-    np.ndarray of the same shape and dtype as raw_errors.
-    """
-    raw_errors = np.asarray(raw_errors, dtype=np.float32)
-    if raw_errors.size == 0:
-        return raw_errors.copy()
-    ewma = np.empty_like(raw_errors)
-    if init_value is None:
-        ewma[0] = raw_errors[0]
-    else:
-        ewma[0] = alpha * raw_errors[0] + (1.0 - alpha) * float(init_value)
-    for i in range(1, len(raw_errors)):
-        ewma[i] = alpha * raw_errors[i] + (1.0 - alpha) * ewma[i - 1]
-    return ewma
-
-
-def adaptive_reconstruction_scores(
-    ae_model,
-    threshold_nn,
-    X,
-    batch_size: int,
-) -> np.ndarray:
-    """Window anomaly score = mean(L2_t - expected_RE_t) over timesteps, shape (N,).
-
-    A score > gamma signals an anomaly when using the adaptive threshold.
-    """
-    X_arr = np.asarray(X, dtype=np.float32)
-    N, T, F = X_arr.shape
-    per_ts_l2 = per_timestep_l2_scores(ae_model, X_arr, batch_size)  # (N, T)
-    X_flat = X_arr.reshape(N * T, F)
-    expected_re = threshold_nn.predict(X_flat, batch_size=batch_size, verbose=0).reshape(N, T)
-    return np.mean(per_ts_l2 - expected_re, axis=1).astype(np.float32)
